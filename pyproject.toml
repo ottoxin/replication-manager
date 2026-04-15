@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "replication-manager"
+version = "0.1.0"
+description = "A simplified replication workflow for comparing papers against reproduced outputs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Hao" }
+]
+dependencies = [
+  "jinja2>=3.1.0",
+  "pypdf>=4.0.0",
+]
+
+[project.scripts]
+replication-manager = "replication_manager.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
