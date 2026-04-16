@@ -108,6 +108,7 @@ class SandboxManifest:
     temp_dir: str
     python_executable: str | None = None
     r_library_dir: str | None = None
+    r_profile_path: str | None = None
     install_records: list[BootstrapRecord] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -172,8 +173,31 @@ class RunResult:
     paper_manifest: PaperManifest
     package_manifest: PackageManifest
     sandbox_manifest: SandboxManifest
+    agent_trace: list["AgentRecord"]
+    skill_trace: list["SkillRecord"]
     execution_records: list[ExecutionRecord]
     comparison: ComparisonBundle
     report_markdown: Path
     report_html: Path
     summary_json: Path
+    diagnostic_notes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AgentRecord:
+    name: str
+    role: str
+    phase: str
+    status: str
+    summary: str
+    artifact_paths: list[str] = field(default_factory=list)
+
+
+@dataclass
+class SkillRecord:
+    name: str
+    agent: str
+    phase: str
+    status: str
+    summary: str
+    artifact_paths: list[str] = field(default_factory=list)

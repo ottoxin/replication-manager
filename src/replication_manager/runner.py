@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import time
@@ -8,7 +9,27 @@ from pathlib import Path
 
 from .models import ExecutionRecord, SandboxManifest, ScriptRecord
 from .sandbox import build_subprocess_env
-from .utils import ensure_dir, slugify
+from .utils import ensure_dir, read_text_safely, slugify
+
+
+R_INPUT_PATTERNS = [
+    r'read\.table\(\s*["\']([^"\']+)["\']',
+    r'read\.csv\(\s*["\']([^"\']+)["\']',
+    r'readRDS\(\s*["\']([^"\']+)["\']',
+    r'load\(\s*["\']([^"\']+)["\']',
+    r'read_[A-Za-z0-9_]+\(\s*["\']([^"\']+)["\']',
+]
+PYTHON_INPUT_PATTERNS = [
+    r'read_csv\(\s*["\']([^"\']+)["\']',
+    r'read_table\(\s*["\']([^"\']+)["\']',
+    r'read_parquet\(\s*["\']([^"\']+)["\']',
+    r'open\(\s*["\']([^"\']+)["\']\s*,\s*["\']r',
+]
+STATA_INPUT_PATTERNS = [
+    r'\buse\s+["\']([^"\']+)["\']',
+    r'\buse\s+([^\s,]+)',
+    r'\bimport\s+delimited\s+["\']([^"\']+)["\']',
+]
 
 
 def execute_scripts(
@@ -22,7 +43,7 @@ def execute_scripts(
 ) -> list[ExecutionRecord]:
     ensure_dir(logs_dir)
     records: list[ExecutionRecord] = []
-    for script in scripts:
+    for script in select_scripts_for_execution(scripts):
         records.append(
             execute_script(
                 script=script,
@@ -49,6 +70,7 @@ def execute_script(
     script_path = Path(script.path)
     stdout_path = logs_dir / f"{slugify(script_path.stem)}.stdout.log"
     stderr_path = logs_dir / f"{slugify(script_path.stem)}.stderr.log"
+    working_directory = script_path.parent if script_path.parent.exists() else package_root
 
     if not execute:
         return ExecutionRecord(
@@ -59,6 +81,18 @@ def execute_script(
             status="skipped",
             duration_seconds=0.0,
             message="Execution disabled by --no-execute.",
+        )
+
+    missing_inputs = find_missing_inputs(script_path, package_root, script.language)
+    if missing_inputs:
+        return ExecutionRecord(
+            script_path=script.path,
+            language=script.language,
+            command=[],
+            return_code=None,
+            status="blocked",
+            duration_seconds=0.0,
+            message="Missing required inputs: " + ", ".join(missing_inputs),
         )
 
     command = build_command(script_path, script.language, sandbox, stata_bin)
@@ -79,7 +113,7 @@ def execute_script(
     try:
         completed = subprocess.run(
             command,
-            cwd=str(script_path.parent),
+            cwd=str(working_directory),
             env=env,
             capture_output=True,
             text=True,
@@ -141,9 +175,66 @@ def build_command(
         return [python_bin, str(script_path)]
     if language == "r":
         return ["Rscript", str(script_path)]
+    if language == "shell":
+        return ["bash", str(script_path)]
     if language == "stata":
         binary = stata_bin or os.environ.get("REPLICATION_MANAGER_STATA_BIN")
         if not binary:
             return None
         return [binary, "-b", "do", str(script_path)]
     return None
+
+
+def find_missing_inputs(script_path: Path, package_root: Path, language: str) -> list[str]:
+    patterns = {
+        "r": R_INPUT_PATTERNS,
+        "python": PYTHON_INPUT_PATTERNS,
+        "stata": STATA_INPUT_PATTERNS,
+    }.get(language, [])
+    if not patterns:
+        return []
+
+    text = read_text_safely(script_path)
+    missing: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        for match in re.finditer(pattern, text):
+            candidate = normalize_candidate_path(match.group(1))
+            if not candidate or candidate in seen:
+                continue
+            seen.add(candidate)
+            if is_nonlocal_candidate(candidate):
+                continue
+            resolved_from_script = (script_path.parent / candidate).resolve()
+            resolved_from_package = (package_root / candidate).resolve()
+            if not resolved_from_script.exists() and not resolved_from_package.exists():
+                missing.append(candidate)
+    return missing
+
+
+def normalize_candidate_path(value: str) -> str:
+    candidate = value.strip().strip('"').strip("'")
+    while candidate.startswith("./"):
+        candidate = candidate[2:]
+    return candidate
+
+
+def is_nonlocal_candidate(candidate: str) -> bool:
+    return (
+        not candidate
+        or "://" in candidate
+        or candidate.startswith("/")
+        or "*" in candidate
+        or "${" in candidate
+        or "`" in candidate
+    )
+
+
+def select_scripts_for_execution(scripts: list[ScriptRecord]) -> list[ScriptRecord]:
+    priority_zero = [script for script in scripts if script.priority == 0]
+    shell_entrypoints = [script for script in priority_zero if script.language == "shell"]
+    if shell_entrypoints:
+        return shell_entrypoints
+    if priority_zero:
+        return priority_zero
+    return scripts

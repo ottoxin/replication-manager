@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import subprocess
+import importlib.util
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, is_dataclass
@@ -13,6 +15,7 @@ from typing import Any
 NUMERIC_PATTERN = re.compile(
     r"(?<![A-Za-z0-9])(?:[<>]=?\s*)?[-−]?\d[\d,]*(?:\.\d+)?%?"
 )
+SPACED_CAPS_PATTERN = re.compile(r"\b([A-Z])\s+([A-Z]{2,})\b")
 
 
 def ensure_dir(path: Path) -> Path:
@@ -22,6 +25,17 @@ def ensure_dir(path: Path) -> Path:
 
 def normalize_space(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+def normalize_document_text(text: str) -> str:
+    normalized = normalize_space(text).replace("‘", "'").replace("’", "'")
+    previous = None
+    while previous != normalized:
+        previous = normalized
+        normalized = SPACED_CAPS_PATTERN.sub(r"\1\2", normalized)
+    normalized = re.sub(r"\s+'", "'", normalized)
+    normalized = re.sub(r"(?<=[A-Za-z])\s*-\s*(?=[A-Za-z])", "-", normalized)
+    return normalized
 
 
 def slugify(text: str) -> str:
@@ -36,9 +50,55 @@ def is_url(value: str) -> bool:
 
 def download_file(url: str, destination: Path) -> Path:
     ensure_dir(destination.parent)
-    with urllib.request.urlopen(url) as response, destination.open("wb") as handle:
-        shutil.copyfileobj(response, handle)
-    return destination
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/123.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
+    }
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request) as response, destination.open("wb") as handle:
+            shutil.copyfileobj(response, handle)
+        return destination
+    except Exception:
+        if importlib.util.find_spec("requests"):
+            import requests
+
+            response = requests.get(url, headers=headers, timeout=60)
+            response.raise_for_status()
+            destination.write_bytes(response.content)
+            return destination
+        curl = shutil.which("curl")
+        if not curl:
+            raise
+        subprocess.run(
+            [
+                curl,
+                "-L",
+                "-A",
+                headers["User-Agent"],
+                "-H",
+                f"Accept: {headers['Accept']}",
+                "-H",
+                f"Accept-Language: {headers['Accept-Language']}",
+                "-o",
+                str(destination),
+                url,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return destination
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -78,8 +138,16 @@ def parse_numeric_token(raw: str) -> tuple[float, int]:
 
 
 def token_overlap(left: str, right: str) -> float:
-    left_tokens = {token for token in re.findall(r"[a-z0-9]+", left.lower()) if len(token) > 2}
-    right_tokens = {token for token in re.findall(r"[a-z0-9]+", right.lower()) if len(token) > 2}
+    left_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", normalize_document_text(left).lower())
+        if len(token) > 2
+    }
+    right_tokens = {
+        token
+        for token in re.findall(r"[a-z0-9]+", normalize_document_text(right).lower())
+        if len(token) > 2
+    }
     if not left_tokens or not right_tokens:
         return 0.0
     return len(left_tokens & right_tokens) / len(left_tokens | right_tokens)

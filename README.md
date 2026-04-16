@@ -2,21 +2,26 @@
 
 `replication-manager` is a lightweight pre-submission replication framework inspired by Yiqing Xu and Leo Yang Yang's paper, ["Scaling Reproducibility: An AI-Assisted Workflow for Large-Scale Replication and Reanalysis"](https://yiqingxu.org/papers/2026_ai/AI_reproducibility.pdf).
 
-The main use case is journal submission prep: take a paper plus its replication package, run the package in a clean sandbox, install the declared dependencies, and generate a report showing what reproduced and what did not.
+The main use case is journal submission prep: take a paper plus its replication package, run the package in a clean sandbox, install the declared dependencies, and generate a report showing what reproduced, what is blocked upstream, and what still depends on undeclared environment assumptions.
 
 ## Core Workflow
 
-The paper's full system is a three-layer, multi-agent workflow with execution, verification, and diagnostic phases. This repo keeps the main ideas but compresses them into a simpler local tool:
+The paper's full system is a three-layer, multi-agent workflow with execution, verification, and diagnostic phases. This repo now keeps that structure in a compact form:
 
-1. Ingest a paper and a replication package.
-2. Copy the package into a clean sandbox.
-3. Clear the runtime environment and create isolated directories.
-4. Install declared dependencies when supported manifests are present.
-5. Extract paper targets: tables, figure captions, and numeric claims.
-6. Execute supported scripts when possible (`.py`, `.R`, `.do`).
-7. Collect regenerated artifacts.
-8. Compare paper-side numbers, tables, and figures against replicated outputs.
-9. Produce a Markdown, HTML, and JSON report.
+1. A `Coordinator` agent profiles the paper, inspects the package, and builds shared state.
+2. An `Executor` agent prepares a clean workspace, runs scripts, and diagnoses blocked stages.
+3. A `Reporter` agent matches outputs back to the paper and writes the submission-facing report.
+
+Each agent uses deterministic skills rather than open-ended LLM execution. The main built-in skills are:
+
+- `intake_sources`
+- `profile_paper`
+- `inspect_package`
+- `prepare_workspace`
+- `execute_package`
+- `diagnose_execution`
+- `match_outputs`
+- `write_report`
 
 ## Pre-Submission Defaults
 
@@ -52,7 +57,8 @@ Unsupported environment files are still detected and surfaced in the package man
 
 ## What It Simplifies
 
-- No LLM orchestration layer.
+- A compact three-agent loop instead of a larger multi-agent system.
+- Deterministic local skills instead of a live LLM planner.
 - No persistent knowledge base of failure patterns.
 - No full econometric diagnostics like the paper's IV pipeline.
 - No OCR or vision extraction for complicated PDFs.
@@ -138,14 +144,16 @@ Each run writes structured outputs under the chosen output directory:
 
 ## Design Mapping
 
-The original paper separates responsibilities across several agents. This repo maps them into smaller local modules:
+The original paper separates planning, execution, and verification. This repo maps that into a small orchestrated workflow:
 
+- `workflow.py`: compact agent loop, skill registry, shared workflow state, and diagnostics.
 - `paper.py`: paper parsing and claim extraction.
 - `package.py`: package download, unzip, inspection, and artifact collection.
 - `sandbox.py`: clean execution copy, environment isolation, and dependency bootstrap.
 - `runner.py`: supported script execution.
 - `compare.py`: precision-aware matching and verdict logic.
-- `reporting.py`: report generation.
+- `agents.py`: concise agent summaries built from the executed skills.
+- `reporting.py`: report generation with both agent and skill traces.
 
 ## Notes
 

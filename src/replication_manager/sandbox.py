@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -9,7 +11,10 @@ from pathlib import Path
 
 from .models import BootstrapRecord, PackageManifest, SandboxManifest
 from .package import discover_environment_files
-from .utils import ensure_dir, slugify
+from .utils import ensure_dir, read_text_safely, slugify
+
+CODEOCEAN_SCRIPT_SUFFIXES = {".py", ".r", ".do", ".sh"}
+CODEOCEAN_MOUNT_PATTERN = re.compile(r"(?<![A-Za-z0-9_./-])/(data|results|code)(?=[^A-Za-z0-9_]|$)")
 
 
 def prepare_sandbox(
@@ -40,7 +45,9 @@ def prepare_sandbox(
     temp_dir = ensure_dir(sandbox_root / "tmp")
     logs_dir = ensure_dir(sandbox_root / "logs")
     r_library_dir = ensure_dir(sandbox_root / "r_libs")
+    r_profile_path = sandbox_root / "r_profile.R"
     shutil.copytree(source_root, project_root, dirs_exist_ok=True)
+    r_profile_path.write_text("options(repos = c(CRAN = 'https://cloud.r-project.org'))\n", encoding="utf-8")
 
     needs_python = any(script.language == "python" for script in package_manifest.scripts) or any(
         Path(item).name.lower() in {"requirements.txt", "pyproject.toml", "setup.py", "setup.cfg"}
@@ -52,6 +59,7 @@ def prepare_sandbox(
         "Execution uses a copied project tree with a fresh HOME and temp directory.",
         "Python user site-packages are disabled inside the sandbox.",
     ]
+    notes.extend(prepare_codeocean_workspace(project_root))
 
     if needs_python:
         venv_dir = sandbox_root / ".venv"
@@ -67,6 +75,7 @@ def prepare_sandbox(
         temp_dir=str(temp_dir),
         python_executable=python_executable,
         r_library_dir=str(r_library_dir),
+        r_profile_path=str(r_profile_path),
         notes=notes,
     )
 
@@ -102,11 +111,54 @@ def build_subprocess_env(sandbox: SandboxManifest, package_root: Path) -> dict[s
         "REPLICATION_MANAGER_SANDBOX": sandbox.root,
         "R_LIBS_USER": sandbox.r_library_dir or "",
         "R_ENVIRON_USER": os.devnull,
-        "R_PROFILE_USER": os.devnull,
+        "R_PROFILE_USER": sandbox.r_profile_path or os.devnull,
     }
     if sandbox.python_executable:
         env["VIRTUAL_ENV"] = str(Path(sandbox.python_executable).parent.parent)
     return env
+
+
+def prepare_codeocean_workspace(project_root: Path) -> list[str]:
+    if not is_codeocean_project(project_root):
+        return []
+
+    notes = [
+        "Detected a Code Ocean-style package and prepared local mount compatibility for `/code`, `/data`, and `/results` paths."
+    ]
+    ensure_dir(project_root / "results")
+    replacements = {
+        "/data": str((project_root / "data").resolve()),
+        "/results": str((project_root / "results").resolve()),
+        "/code": str((project_root / "code").resolve()),
+    }
+
+    rewritten_files: list[str] = []
+    for path in project_root.rglob("*"):
+        if not path.is_file() or path.suffix.lower() not in CODEOCEAN_SCRIPT_SUFFIXES:
+            continue
+        original = read_text_safely(path)
+        rewritten = CODEOCEAN_MOUNT_PATTERN.sub(lambda match: replacements[f"/{match.group(1)}"], original)
+        if rewritten == original:
+            continue
+        path.write_text(rewritten, encoding="utf-8")
+        rewritten_files.append(str(path.relative_to(project_root)))
+
+    if rewritten_files:
+        notes.append(
+            "Rewrote Code Ocean mount aliases inside "
+            + ", ".join(f"`{item}`" for item in rewritten_files)
+            + "."
+        )
+    return notes
+
+
+def is_codeocean_project(project_root: Path) -> bool:
+    if (project_root / ".codeocean" / "environment.json").exists():
+        return True
+    reproducing = project_root / "REPRODUCING.md"
+    if reproducing.exists() and "code ocean" in read_text_safely(reproducing).lower():
+        return True
+    return (project_root / "environment" / "Dockerfile").exists()
 
 
 def build_path(sandbox: SandboxManifest) -> str:
@@ -179,6 +231,31 @@ def bootstrap_r(
         for path in environment_files
         if path.name.lower() in {"install.r", "packages.r", "setup.r"}
     ]
+    codeocean_envs = [path for path in environment_files if path.name.lower() == "environment.json"]
+
+    for env_json in sorted(codeocean_envs):
+        package_names = codeocean_rcran_packages(env_json)
+        if not package_names:
+            continue
+        records.append(
+            run_bootstrap_command(
+                label=f"codeocean-rcran-{slugify(str(env_json.relative_to(project_root)))}",
+                language="r",
+                command=[
+                    "Rscript",
+                    "-e",
+                    (
+                        "install.packages(c("
+                        + ", ".join(repr(name) for name in package_names)
+                        + "), repos='https://cloud.r-project.org')"
+                    ),
+                ],
+                cwd=env_json.parent,
+                env=env,
+                logs_dir=logs_dir,
+                timeout_seconds=timeout_seconds,
+            )
+        )
 
     for renv_lock in sorted(renv_locks):
         records.append(
@@ -214,6 +291,16 @@ def bootstrap_r(
         )
 
     return records
+
+
+def codeocean_rcran_packages(environment_json: Path) -> list[str]:
+    try:
+        payload = json.loads(read_text_safely(environment_json) or "{}")
+    except json.JSONDecodeError:
+        return []
+    packages = payload.get("installers", {}).get("rcran", {}).get("packages", [])
+    names = [item.get("name", "").strip() for item in packages if isinstance(item, dict)]
+    return [name for name in names if name]
 
 
 def run_bootstrap_command(

@@ -4,7 +4,15 @@ from pathlib import Path
 
 from jinja2 import Environment
 
-from .models import ComparisonBundle, ExecutionRecord, PackageManifest, PaperManifest, SandboxManifest
+from .models import (
+    AgentRecord,
+    ComparisonBundle,
+    ExecutionRecord,
+    PackageManifest,
+    PaperManifest,
+    SandboxManifest,
+    SkillRecord,
+)
 from .utils import ensure_dir
 
 
@@ -40,6 +48,32 @@ MARKDOWN_TEMPLATE = """
 {% for record in sandbox.install_records -%}
 | `{{ record.label }}` | {{ record.language }} | {{ record.status }} | {{ record.return_code if record.return_code is not none else "-" }} | {{ "%.3f"|format(record.duration_seconds) }} |
 {% endfor %}
+
+## Agent Workflow
+
+| Agent | Role | Phase | Status | Summary |
+| --- | --- | --- | --- | --- |
+{% for agent in agent_trace -%}
+| {{ agent.name }} | {{ agent.role }} | {{ agent.phase }} | {{ agent.status }} | {{ agent.summary }} |
+{% endfor %}
+
+## Skill Workflow
+
+| Skill | Agent | Phase | Status | Summary |
+| --- | --- | --- | --- | --- |
+{% for skill in skill_trace -%}
+| {{ skill.name }} | {{ skill.agent }} | {{ skill.phase }} | {{ skill.status }} | {{ skill.summary }} |
+{% endfor %}
+
+## Diagnostics
+
+{% if diagnostic_notes -%}
+{% for note in diagnostic_notes -%}
+- {{ note }}
+{% endfor %}
+{% else -%}
+- No additional workflow diagnostics were generated.
+{% endif %}
 
 ## Execution
 
@@ -155,6 +189,7 @@ HTML_TEMPLATE = """
     }
     th { background: #f2ebdf; }
     .matched { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
     .missing { color: var(--bad); font-weight: 700; }
     code {
       background: #f2ebdf;
@@ -206,6 +241,71 @@ HTML_TEMPLATE = """
     </section>
 
     <section>
+      <h2>Agent Workflow</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Role</th>
+            <th>Phase</th>
+            <th>Status</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for agent in agent_trace %}
+          <tr>
+            <td>{{ agent.name }}</td>
+            <td>{{ agent.role }}</td>
+            <td>{{ agent.phase }}</td>
+            <td class="{{ 'matched' if agent.status == 'success' else 'missing' if agent.status == 'failed' else 'warn' if agent.status in ['blocked', 'skipped'] else '' }}">{{ agent.status }}</td>
+            <td>{{ agent.summary }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Skill Workflow</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Skill</th>
+            <th>Agent</th>
+            <th>Phase</th>
+            <th>Status</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for skill in skill_trace %}
+          <tr>
+            <td>{{ skill.name }}</td>
+            <td>{{ skill.agent }}</td>
+            <td>{{ skill.phase }}</td>
+            <td class="{{ 'matched' if skill.status == 'success' else 'missing' if skill.status == 'failed' else 'warn' if skill.status in ['blocked', 'skipped'] else '' }}">{{ skill.status }}</td>
+            <td>{{ skill.summary }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Diagnostics</h2>
+      <ul>
+      {% if diagnostic_notes %}
+        {% for note in diagnostic_notes %}
+          <li>{{ note }}</li>
+        {% endfor %}
+      {% else %}
+        <li>No additional workflow diagnostics were generated.</li>
+      {% endif %}
+      </ul>
+    </section>
+
+    <section>
       <h2>Dependency Bootstrap</h2>
       <table>
         <thead>
@@ -222,7 +322,7 @@ HTML_TEMPLATE = """
           <tr>
             <td><code>{{ record.label }}</code></td>
             <td>{{ record.language }}</td>
-            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else '' }}">{{ record.status }}</td>
+            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' if record.status in ['blocked', 'skipped', 'timeout'] else '' }}">{{ record.status }}</td>
             <td>{{ record.return_code if record.return_code is not none else '-' }}</td>
             <td>{{ "%.3f"|format(record.duration_seconds) }}</td>
           </tr>
@@ -248,7 +348,7 @@ HTML_TEMPLATE = """
           <tr>
             <td><code>{{ record.script_path }}</code></td>
             <td>{{ record.language }}</td>
-            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else '' }}">{{ record.status }}</td>
+            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' if record.status in ['blocked', 'skipped', 'timeout'] else '' }}">{{ record.status }}</td>
             <td>{{ record.return_code if record.return_code is not none else '-' }}</td>
             <td>{{ "%.3f"|format(record.duration_seconds) }}</td>
           </tr>
@@ -341,6 +441,9 @@ def render_reports(
     sandbox: SandboxManifest,
     execution_records: list[ExecutionRecord],
     comparison: ComparisonBundle,
+    agent_trace: list[AgentRecord],
+    skill_trace: list[SkillRecord],
+    diagnostic_notes: list[str],
 ) -> tuple[Path, Path]:
     ensure_dir(output_dir)
     environment = Environment(trim_blocks=True, lstrip_blocks=True)
@@ -351,6 +454,9 @@ def render_reports(
         "sandbox": sandbox,
         "execution_records": execution_records,
         "comparison": comparison,
+        "agent_trace": agent_trace,
+        "skill_trace": skill_trace,
+        "diagnostic_notes": diagnostic_notes,
     }
 
     markdown = environment.from_string(MARKDOWN_TEMPLATE).render(**context).strip() + "\n"

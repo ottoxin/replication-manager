@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import re
 
 from .models import (
     ComparisonBundle,
     ComparisonSummary,
+    ExecutionRecord,
     FigureMatch,
     NumericClaim,
     NumericMatch,
@@ -15,6 +18,42 @@ from .models import (
 from .utils import token_overlap
 
 
+FIGURE_REFERENCE_PATTERN = re.compile(r"\bfigure\s+([A-Za-z]?\d+[A-Za-z]?)", re.IGNORECASE)
+OUTPUT_DIR_HINTS = {
+    "output",
+    "outputs",
+    "result",
+    "results",
+    "03_output",
+    "02_tables",
+    "01_figures",
+    "table",
+    "tables",
+    "figure",
+    "figures",
+}
+INPUT_DIR_HINTS = {
+    ".codeocean",
+    "data",
+    "environment",
+    "images",
+    "input",
+    "inputs",
+    "metadata",
+    "raw",
+    "04_images",
+}
+NONRESULT_FILENAMES = {
+    "dockerfile",
+    "environment.json",
+    "license",
+    "license.txt",
+    "metadata.yml",
+    "readme.md",
+    "reproducing.md",
+}
+
+
 @dataclass
 class NumericCandidate:
     artifact_path: str
@@ -22,7 +61,11 @@ class NumericCandidate:
     key: str
 
 
-def compare_manifests(paper: PaperManifest, package: PackageManifest) -> ComparisonBundle:
+def compare_manifests(
+    paper: PaperManifest,
+    package: PackageManifest,
+    execution_records: list[ExecutionRecord] | None = None,
+) -> ComparisonBundle:
     numeric_matches = compare_numeric_claims(paper.numeric_claims, package)
     table_matches = compare_tables(paper, package)
     figure_matches = compare_figures(paper, package)
@@ -32,7 +75,7 @@ def compare_manifests(paper: PaperManifest, package: PackageManifest) -> Compari
     figure_rate = rate(sum(item.matched for item in figure_matches), len(figure_matches))
 
     summary = ComparisonSummary(
-        verdict=verdict_from_rates(numeric_rate, table_rate, figure_rate),
+        verdict=verdict_from_rates(numeric_rate, table_rate, figure_rate, execution_records, package),
         numeric_match_rate=numeric_rate,
         table_match_rate=table_rate,
         figure_match_rate=figure_rate,
@@ -53,7 +96,7 @@ def compare_manifests(paper: PaperManifest, package: PackageManifest) -> Compari
 
 def compare_numeric_claims(claims: list[NumericClaim], package: PackageManifest) -> list[NumericMatch]:
     candidates: list[NumericCandidate] = []
-    for artifact in package.table_artifacts:
+    for artifact in comparable_table_artifacts(package):
         for index, value in enumerate(artifact.numeric_values):
             candidates.append(
                 NumericCandidate(
@@ -108,13 +151,14 @@ def compare_numeric_claims(claims: list[NumericClaim], package: PackageManifest)
 
 def compare_tables(paper: PaperManifest, package: PackageManifest) -> list[TableMatch]:
     table_matches: list[TableMatch] = []
+    artifacts = comparable_table_artifacts(package)
     used_paths: set[str] = set()
     for table in paper.tables:
         best_path: str | None = None
         best_score = 0.0
         best_overlap = 0
         total_values = len(table.numeric_claims)
-        for artifact in package.table_artifacts:
+        for artifact in artifacts:
             if artifact.path in used_paths:
                 continue
             overlap = precision_overlap(table.numeric_claims, artifact.numeric_values)
@@ -144,20 +188,36 @@ def compare_tables(paper: PaperManifest, package: PackageManifest) -> list[Table
 
 def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[FigureMatch]:
     figure_matches: list[FigureMatch] = []
+    artifacts = comparable_figure_artifacts(package)
     used_paths: set[str] = set()
     for figure in paper.figures:
         best_path: str | None = None
         best_score = 0.0
-        for artifact in package.figure_artifacts:
+        best_label_score = 0.0
+        best_reference_match = False
+        best_label = ""
+        for artifact in artifacts:
             if artifact.path in used_paths:
                 continue
-            score = token_overlap(figure.caption, artifact.label)
-            if figure.number and figure.number in artifact.label:
-                score += 0.5
+            label_score = token_overlap(figure.caption, artifact.label)
+            score = label_score
+            reference_match = has_matching_figure_reference(figure.number, artifact.label)
+            references = figure_references(artifact.label)
+            if reference_match:
+                score += 0.25
+            elif references and has_appendix_mismatch(figure.number, references):
+                # Appendix outputs should not satisfy main-text figure matches on caption
+                # overlap alone.
+                score *= 0.2
             if score > best_score:
                 best_score = score
+                best_label_score = label_score
                 best_path = artifact.path
-        matched = best_path is not None and best_score >= 0.25
+                best_reference_match = reference_match
+                best_label = artifact.label
+        matched = best_path is not None and best_score >= 0.25 and (
+            best_label_score >= 0.1 or (best_reference_match and not has_descriptive_figure_text(best_label))
+        )
         if matched and best_path:
             used_paths.add(best_path)
         figure_matches.append(
@@ -170,6 +230,43 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
             )
         )
     return figure_matches
+
+
+def has_matching_figure_reference(figure_number: str, artifact_label: str) -> bool:
+    if not figure_number:
+        return False
+    target = normalize_reference(figure_number)
+    return any(normalize_reference(match) == target for match in figure_references(artifact_label))
+
+
+def figure_references(label: str) -> list[str]:
+    normalized = label.replace("_", " ").replace("-", " ")
+    return FIGURE_REFERENCE_PATTERN.findall(normalized)
+
+
+def has_descriptive_figure_text(label: str) -> bool:
+    tokens = re.findall(r"[a-z0-9]+", label.lower())
+    for token in tokens:
+        if token in {"appendix", "figure"}:
+            continue
+        if re.fullmatch(r"[a-z]?\d+[a-z]?", token):
+            continue
+        return True
+    return False
+
+
+def has_appendix_mismatch(figure_number: str, references: list[str]) -> bool:
+    target_is_appendix = is_appendix_reference(figure_number)
+    reference_flags = {is_appendix_reference(item) for item in references}
+    return len(reference_flags) == 1 and target_is_appendix not in reference_flags
+
+
+def is_appendix_reference(value: str) -> bool:
+    return normalize_reference(value).startswith("a")
+
+
+def normalize_reference(value: str) -> str:
+    return value.strip().lower()
 
 
 def precision_overlap(claims: list[NumericClaim], artifact_values: list[float]) -> int:
@@ -195,11 +292,21 @@ def closeness_score(left: float, right: float) -> float:
 
 def rate(matched: int, total: int) -> float:
     if total == 0:
-        return 1.0
+        return 0.0
     return round(matched / total, 4)
 
 
-def verdict_from_rates(numeric_rate: float, table_rate: float, figure_rate: float) -> str:
+def verdict_from_rates(
+    numeric_rate: float,
+    table_rate: float,
+    figure_rate: float,
+    execution_records: list[ExecutionRecord] | None,
+    package: PackageManifest,
+) -> str:
+    if execution_records is not None and package.scripts:
+        success_count = sum(record.status == "success" for record in execution_records)
+        if success_count == 0:
+            return "not reproducible"
     combined = 0.6 * numeric_rate + 0.3 * table_rate + 0.1 * figure_rate
     if combined >= 0.9 and numeric_rate >= 0.85:
         return "fully reproducible"
@@ -208,3 +315,30 @@ def verdict_from_rates(numeric_rate: float, table_rate: float, figure_rate: floa
     if combined >= 0.4:
         return "partially reproducible"
     return "not reproducible"
+
+
+def comparable_table_artifacts(package: PackageManifest):
+    return [artifact for artifact in package.table_artifacts if is_output_artifact(artifact.path)]
+
+
+def comparable_figure_artifacts(package: PackageManifest):
+    return [artifact for artifact in package.figure_artifacts if is_output_artifact(artifact.path)]
+
+
+def is_output_artifact(path: str) -> bool:
+    normalized_path = Path(path)
+    parts = {part.lower() for part in normalized_path.parts}
+    filename = normalized_path.name.lower()
+    suffix = normalized_path.suffix.lower()
+
+    if filename in NONRESULT_FILENAMES:
+        return False
+    if "log" in filename:
+        return False
+    if parts & OUTPUT_DIR_HINTS:
+        return True
+    if parts & INPUT_DIR_HINTS:
+        return False
+    if suffix == ".tex":
+        return True
+    return filename.startswith(("table_", "figure_"))
