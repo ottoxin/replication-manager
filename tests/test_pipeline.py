@@ -154,6 +154,7 @@ class PaperParsingTests(unittest.TestCase):
                         "This is an Open Access article, distributed under the terms of the Creative Commons Attribution licence.",
                         "licenses/by/4.0), which permitsunrestricted re-use, distribution and reproduction,providedthe original article is properlycited.",
                         "2.1. Main Study Design",
+                        "We replicated our main analysis using GPT-4o-2024-11-20.",
                         "We generated 50 completions for each image/prompt combination.",
                         "3.1. Main Analysis",
                         "References",
@@ -169,6 +170,8 @@ class PaperParsingTests(unittest.TestCase):
             self.assertNotIn("2.1", raws)
             self.assertNotIn("3.1", raws)
             self.assertNotIn("4.0", raws)
+            self.assertNotIn("11", raws)
+            self.assertNotIn("20", raws)
             self.assertNotIn("1097", raws)
             self.assertNotIn("4401", raws)
 

@@ -175,10 +175,13 @@ def extract_numeric_claims(lines: list[str], tables: list[PaperTable]) -> list[N
         lowered = line.lower()
         if not any(keyword in lowered for keyword in RESULT_KEYWORDS):
             continue
+        skip_raws = date_like_raw_tokens(line)
         tokens = numeric_tokens(line)
         if len(tokens) > MAX_PROSE_NUMERIC_TOKENS:
             continue
         for token in tokens:
+            if token in skip_raws:
+                continue
             value, decimals = parse_numeric_token(token)
             if not should_keep_numeric_claim(token, value, decimals):
                 continue
@@ -234,6 +237,15 @@ def find_references_start(lines: list[str]) -> int:
         if stripped == "references" or stripped.startswith("references "):
             return index
     return len(lines)
+
+
+def date_like_raw_tokens(line: str) -> set[str]:
+    tokens: set[str] = set()
+    for match in re.finditer(r"\b\d{4}-(\d{1,2})-(\d{1,2})\b", line):
+        month = match.group(1).lstrip("0") or "0"
+        day = match.group(2).lstrip("0") or "0"
+        tokens.update({match.group(1), match.group(2), month, day})
+    return tokens
 
 
 def looks_like_section_heading(line: str) -> bool:
