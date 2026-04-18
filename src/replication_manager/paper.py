@@ -26,6 +26,7 @@ logger = get_logger("paper")
 
 TABLE_PREFIX = "table "
 FIGURE_PREFIX = "figure "
+FIGURE_PREFIXES = ("figure ", "fig. ", "fig ")
 PAGE_MARKER_PREFIX = "===== page "
 RESULT_KEYWORDS = (
     "%",
@@ -167,11 +168,24 @@ def extract_tables(lines: list[str]) -> list[PaperTable]:
 
 def extract_figures(lines: list[str]) -> list[FigureClaim]:
     figures: list[FigureClaim] = []
+    seen_numbers: set[str] = set()
     for index, line in enumerate(lines):
-        if not is_caption_line(line, FIGURE_PREFIX):
-            continue
-        number, caption = split_number_and_title(line, FIGURE_PREFIX)
-        figures.append(FigureClaim(number=number, caption=caption, source=f"Line {index + 1}"))
+        for prefix in FIGURE_PREFIXES:
+            if is_caption_line(line, prefix):
+                number, caption = split_number_and_title(line, prefix)
+                if number not in seen_numbers:
+                    seen_numbers.add(number)
+                    figures.append(FigureClaim(number=number, caption=caption, source=f"Line {index + 1}"))
+                break
+        lowered = line.strip().lower()
+        if lowered.startswith("extended data fig"):
+            match = re.match(r"extended data fig(?:ure|\.)\s*(\d+[a-z]?)[.:]?\s*(.*)", line.strip(), re.IGNORECASE)
+            if match:
+                number = f"E{match.group(1)}"
+                caption = match.group(2).strip() or line.strip()
+                if number not in seen_numbers:
+                    seen_numbers.add(number)
+                    figures.append(FigureClaim(number=number, caption=caption, source=f"Line {index + 1}"))
     return figures
 
 
@@ -233,15 +247,20 @@ def deduplicate_claims(claims: list[NumericClaim]) -> list[NumericClaim]:
 
 def should_skip_line(line: str) -> bool:
     stripped = line.strip()
-    return (
-        not stripped
-        or stripped.lower().startswith(PAGE_MARKER_PREFIX)
-        or stripped.isdigit()
-        or stripped.lower().startswith(TABLE_PREFIX)
-        or stripped.lower().startswith(FIGURE_PREFIX)
-        or looks_like_section_heading(stripped)
-        or is_metadata_line(stripped)
-    )
+    if not stripped or stripped.isdigit():
+        return True
+    lowered = stripped.lower()
+    if lowered.startswith(PAGE_MARKER_PREFIX):
+        return True
+    if lowered.startswith(TABLE_PREFIX) or any(lowered.startswith(p) for p in FIGURE_PREFIXES):
+        return True
+    if lowered.startswith(("extended data fig", "extended data table")):
+        return True
+    if looks_like_section_heading(stripped):
+        return True
+    if is_metadata_line(stripped):
+        return True
+    return False
 
 
 def find_references_start(lines: list[str]) -> int:
@@ -499,9 +518,15 @@ def extract_tables_with_pdfplumber(paper_path: Path) -> list[PaperTable]:
                 for raw_table in extracted:
                     if not raw_table or len(raw_table) < 2:
                         continue
+                    rows = [[cell or "" for cell in row] for row in raw_table if row]
+                    non_empty_cells = sum(1 for row in rows for c in row if c.strip())
+                    if non_empty_cells < 4 or len(rows) < 2:
+                        continue
+                    numeric_cells = sum(1 for row in rows for c in row if c.strip() and any(ch.isdigit() for ch in c))
+                    if numeric_cells < 2:
+                        continue
                     table_counter += 1
                     number, title = _identify_table_from_page(page_text, table_counter)
-                    rows = [[cell or "" for cell in row] for row in raw_table if row]
                     body = "\n".join(["\t".join(row) for row in rows])
                     claims: list[NumericClaim] = []
                     for row in rows:
@@ -534,6 +559,15 @@ def _identify_table_from_page(page_text: str, fallback_counter: int) -> tuple[st
         if is_caption_line(stripped, TABLE_PREFIX):
             number, title = split_number_and_title(stripped, TABLE_PREFIX)
             return number, title
+        lowered = stripped.lower()
+        if lowered.startswith("extended data table"):
+            match = re.match(r"extended data table\s*(\d+[a-z]?)[.:]?\s*(.*)", stripped, re.IGNORECASE)
+            if match:
+                return f"E{match.group(1)}", match.group(2).strip() or stripped
+        if lowered.startswith("supplementary table"):
+            match = re.match(r"supplementary table\s*(\d+[a-z]?)[.:]?\s*(.*)", stripped, re.IGNORECASE)
+            if match:
+                return f"S{match.group(1)}", match.group(2).strip() or stripped
     return str(fallback_counter), f"Extracted table {fallback_counter}"
 
 

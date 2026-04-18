@@ -28,6 +28,9 @@ OUTPUT_DIR_HINTS = {
     "outputs",
     "result",
     "results",
+    "result_alltime",
+    "source_data",
+    "csv",
     "03_output",
     "02_tables",
     "01_figures",
@@ -358,16 +361,25 @@ def verdict_from_rates(
     execution_records: list[ExecutionRecord] | None,
     package: PackageManifest,
 ) -> str:
+    has_source_data_matches = numeric_rate > 0 or table_rate > 0 or figure_rate > 0
     if execution_records is not None and package.scripts:
         success_count = sum(record.status == "success" for record in execution_records)
-        if success_count == 0:
+        if success_count == 0 and not has_source_data_matches:
             return "not reproducible"
+
     combined = 0.6 * numeric_rate + 0.3 * table_rate + 0.1 * figure_rate
+
+    if execution_records is not None and package.scripts:
+        success_count = sum(record.status == "success" for record in execution_records)
+        total_scripts = len([r for r in execution_records if r.status != "skipped"])
+        execution_rate = success_count / max(total_scripts, 1)
+        combined = 0.5 * combined + 0.5 * execution_rate if total_scripts > 0 else combined
+
     if combined >= 0.9 and numeric_rate >= 0.85:
         return "fully reproducible"
     if combined >= 0.7 and numeric_rate >= 0.6:
         return "largely reproducible"
-    if combined >= 0.4:
+    if combined >= 0.4 or (numeric_rate >= 0.6 and has_source_data_matches):
         return "partially reproducible"
     return "not reproducible"
 
@@ -412,4 +424,6 @@ def is_output_artifact(path: str) -> bool:
         return False
     if suffix == ".tex":
         return True
-    return filename.startswith(("table_", "figure_"))
+    if filename.startswith(("table_", "figure_", "sourcedata", "supplementary")):
+        return True
+    return False
