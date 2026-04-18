@@ -7,9 +7,13 @@ import sys
 import time
 from pathlib import Path
 
+from .dag import get_execution_order
+from .log import get_logger
 from .models import ExecutionRecord, SandboxManifest, ScriptRecord
 from .sandbox import build_subprocess_env
 from .utils import ensure_dir, read_text_safely, slugify
+
+logger = get_logger("runner")
 
 
 R_INPUT_PATTERNS = [
@@ -42,8 +46,12 @@ def execute_scripts(
     stata_bin: str | None = None,
 ) -> list[ExecutionRecord]:
     ensure_dir(logs_dir)
+    selected = select_scripts_for_execution(scripts)
+    ordered = get_execution_order(selected, package_root)
+    logger.info("Executing %d scripts (DAG-ordered from %d candidates)", len(ordered), len(scripts))
     records: list[ExecutionRecord] = []
-    for script in select_scripts_for_execution(scripts):
+    for script in ordered:
+        logger.info("Running %s (%s)", Path(script.path).name, script.language)
         records.append(
             execute_script(
                 script=script,
@@ -55,6 +63,7 @@ def execute_scripts(
                 stata_bin=stata_bin,
             )
         )
+        logger.info("  -> %s (%.1fs)", records[-1].status, records[-1].duration_seconds)
     return records
 
 

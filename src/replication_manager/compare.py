@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import importlib.util
 from pathlib import Path
 import re
 
+from .log import get_logger
 from .models import (
     ComparisonBundle,
     ComparisonSummary,
@@ -16,6 +18,8 @@ from .models import (
     TableMatch,
 )
 from .utils import token_overlap
+
+logger = get_logger("compare")
 
 
 FIGURE_REFERENCE_PATTERN = re.compile(r"\bfigure\s+([A-Za-z]?\d+[A-Za-z]?)", re.IGNORECASE)
@@ -190,6 +194,9 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
     figure_matches: list[FigureMatch] = []
     artifacts = comparable_figure_artifacts(package)
     used_paths: set[str] = set()
+
+    hash_cache = _build_hash_cache([a.path for a in artifacts])
+
     for figure in paper.figures:
         best_path: str | None = None
         best_score = 0.0
@@ -206,9 +213,9 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
             if reference_match:
                 score += 0.25
             elif references and has_appendix_mismatch(figure.number, references):
-                # Appendix outputs should not satisfy main-text figure matches on caption
-                # overlap alone.
                 score *= 0.2
+            if artifact.path in hash_cache:
+                score += 0.05
             if score > best_score:
                 best_score = score
                 best_label_score = label_score
@@ -230,6 +237,47 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
             )
         )
     return figure_matches
+
+
+def _build_hash_cache(paths: list[str]) -> dict[str, str]:
+    if not importlib.util.find_spec("imagehash") or not importlib.util.find_spec("PIL"):
+        return {}
+    try:
+        import imagehash
+        from PIL import Image
+    except ImportError:
+        return {}
+
+    cache: dict[str, str] = {}
+    for path in paths:
+        p = Path(path)
+        if p.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+            continue
+        try:
+            img = Image.open(p)
+            cache[path] = str(imagehash.phash(img))
+        except Exception:
+            continue
+    if cache:
+        logger.info("Built perceptual hashes for %d figure artifacts", len(cache))
+    return cache
+
+
+def compute_image_similarity(path_a: str, path_b: str) -> float | None:
+    if not importlib.util.find_spec("imagehash") or not importlib.util.find_spec("PIL"):
+        return None
+    try:
+        import imagehash
+        from PIL import Image
+        img_a = Image.open(path_a)
+        img_b = Image.open(path_b)
+        hash_a = imagehash.phash(img_a)
+        hash_b = imagehash.phash(img_b)
+        max_diff = len(hash_a.hash.flatten())
+        diff = hash_a - hash_b
+        return max(0.0, 1.0 - diff / max(max_diff, 1))
+    except Exception:
+        return None
 
 
 def has_matching_figure_reference(figure_number: str, artifact_label: str) -> bool:

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "replication-manager"
-version = "0.1.0"
-description = "A simplified replication workflow for comparing papers against reproduced outputs."
+version = "0.2.0"
+description = "A replication workflow for comparing papers against reproduced outputs with DAG execution, image hashing, and structured PDF extraction."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -15,6 +15,15 @@ authors = [
 dependencies = [
   "jinja2>=3.1.0",
   "pypdf>=4.0.0",
+]
+
+[project.optional-dependencies]
+pdf = ["pdfplumber>=0.10.0"]
+image = ["imagehash>=4.3.0", "Pillow>=10.0.0"]
+all = [
+  "pdfplumber>=0.10.0",
+  "imagehash>=4.3.0",
+  "Pillow>=10.0.0",
 ]
 
 [project.scripts]

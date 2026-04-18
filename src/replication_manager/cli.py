@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 
+from .log import set_level
 from .pipeline import run_pipeline
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="replication-manager",
-        description="Run a simplified replication workflow on a paper and replication package.",
+        description="Run a replication workflow on a paper and replication package.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -16,32 +17,13 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--paper", required=True, help="Paper path or URL.")
     run_parser.add_argument("--package", required=True, help="Replication package path, directory, or URL.")
     run_parser.add_argument("--output-dir", required=True, help="Directory for run outputs.")
-    run_parser.add_argument(
-        "--no-sandbox",
-        action="store_true",
-        help="Run directly in the unpacked workspace instead of a clean copied sandbox.",
-    )
-    run_parser.add_argument(
-        "--no-install",
-        action="store_true",
-        help="Skip dependency bootstrap inside the sandbox.",
-    )
-    run_parser.add_argument(
-        "--no-execute",
-        action="store_true",
-        help="Do not execute scripts; only inspect artifacts already present in the package.",
-    )
-    run_parser.add_argument(
-        "--timeout-seconds",
-        type=int,
-        default=600,
-        help="Per-script timeout in seconds.",
-    )
-    run_parser.add_argument(
-        "--stata-bin",
-        default=None,
-        help="Override the Stata binary path for .do execution.",
-    )
+    run_parser.add_argument("--no-sandbox", action="store_true", help="Run directly without sandbox isolation.")
+    run_parser.add_argument("--no-install", action="store_true", help="Skip dependency bootstrap.")
+    run_parser.add_argument("--no-execute", action="store_true", help="Inspect only; don't run scripts.")
+    run_parser.add_argument("--timeout-seconds", type=int, default=600, help="Per-script timeout.")
+    run_parser.add_argument("--stata-bin", default=None, help="Stata binary path for .do execution.")
+    run_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+                            help="Logging verbosity.")
     return parser
 
 
@@ -50,6 +32,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "run":
+        set_level(args.log_level)
         result = run_pipeline(
             paper_source=args.paper,
             package_source=args.package,

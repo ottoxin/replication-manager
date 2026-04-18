@@ -6,6 +6,9 @@ from typing import Callable
 
 from .agents import build_agent_trace
 from .compare import comparable_figure_artifacts, comparable_table_artifacts, compare_manifests
+from .log import get_logger
+
+logger = get_logger("workflow")
 from .models import (
     AgentRecord,
     ComparisonBundle,
@@ -105,7 +108,9 @@ def run_agentic_workflow(
         skill = next((item for item in skills if item.should_run(state)), None)
         if skill is None:
             break
+        logger.info("[%s] %s → %s", skill.phase, skill.agent, skill.name)
         record = skill.run(state)
+        logger.info("  %s: %s", record.status, record.summary)
         state.skill_trace.append(record)
         persist_artifacts(state)
     else:

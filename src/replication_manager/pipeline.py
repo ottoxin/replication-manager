@@ -17,6 +17,7 @@ def run_pipeline(
     timeout_seconds: int = 600,
     stata_bin: str | None = None,
 ) -> RunResult:
+    """Run the full replication pipeline: intake → profile → inspect → sandbox → execute → compare → report."""
     return run_agentic_workflow(
         paper_source=paper_source,
         package_source=package_source,

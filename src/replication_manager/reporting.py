@@ -4,6 +4,7 @@ from pathlib import Path
 
 from jinja2 import Environment
 
+from .log import get_logger
 from .models import (
     AgentRecord,
     ComparisonBundle,
@@ -13,7 +14,9 @@ from .models import (
     SandboxManifest,
     SkillRecord,
 )
-from .utils import ensure_dir
+from .utils import ensure_dir, read_text_safely
+
+logger = get_logger("reporting")
 
 
 MARKDOWN_TEMPLATE = """
@@ -152,7 +155,8 @@ HTML_TEMPLATE = """
       line-height: 1.1;
     }
     h1 { font-size: 2.4rem; }
-    h2 { margin-top: 28px; font-size: 1.35rem; }
+    h2 { margin-top: 28px; font-size: 1.35rem; cursor: pointer; }
+    h2:hover { color: var(--accent); }
     p, li { color: var(--muted); }
     .metrics {
       display: grid;
@@ -187,7 +191,8 @@ HTML_TEMPLATE = """
       vertical-align: top;
       font-size: 0.95rem;
     }
-    th { background: #f2ebdf; }
+    th { background: #f2ebdf; cursor: pointer; user-select: none; }
+    th:hover { background: #e8dfcf; }
     .matched { color: var(--ok); font-weight: 700; }
     .warn { color: var(--warn); font-weight: 700; }
     .missing { color: var(--bad); font-weight: 700; }
@@ -195,96 +200,140 @@ HTML_TEMPLATE = """
       background: #f2ebdf;
       border-radius: 6px;
       padding: 2px 5px;
+      font-size: 0.85rem;
     }
+    .filter-bar {
+      margin: 12px 0 6px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .filter-bar button {
+      padding: 5px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .filter-bar button.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .filter-bar input {
+      padding: 5px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      flex: 1;
+      min-width: 180px;
+    }
+    .log-preview {
+      display: none;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.8rem;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      margin-top: 6px;
+    }
+    .log-toggle {
+      cursor: pointer;
+      color: var(--accent);
+      text-decoration: underline;
+      font-size: 0.85rem;
+    }
+    .collapsible { transition: max-height 0.3s ease; overflow: hidden; }
+    .suggestion {
+      background: #fef9e7;
+      border-left: 4px solid var(--warn);
+      padding: 10px 14px;
+      margin: 8px 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.9rem;
+    }
+    .nav-toc {
+      position: fixed;
+      top: 40px;
+      right: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 0.8rem;
+      max-width: 200px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    }
+    .nav-toc a { display: block; padding: 3px 0; color: var(--muted); text-decoration: none; }
+    .nav-toc a:hover { color: var(--accent); }
+    @media (max-width: 1400px) { .nav-toc { display: none; } }
+    @media print { .filter-bar, .nav-toc, .log-toggle { display: none; } }
   </style>
 </head>
 <body>
+  <nav class="nav-toc">
+    <strong>Sections</strong>
+    <a href="#summary">Summary</a>
+    <a href="#sandbox">Sandbox</a>
+    <a href="#workflow">Workflow</a>
+    <a href="#diagnostics">Diagnostics</a>
+    <a href="#bootstrap">Bootstrap</a>
+    <a href="#execution">Execution</a>
+    <a href="#tables">Tables</a>
+    <a href="#figures">Figures</a>
+    <a href="#numerics">Numerics</a>
+  </nav>
   <main>
-    <section class="hero">
+    <section class="hero" id="summary">
       <h1>{{ paper.title }}</h1>
       <p>Verdict: <strong>{{ comparison.summary.verdict }}</strong></p>
       <div class="metrics">
         <div class="metric">
           <span>Numeric match rate</span>
           <strong>{{ pct(comparison.summary.numeric_match_rate) }}</strong>
+          <small>{{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }}</small>
         </div>
         <div class="metric">
           <span>Table match rate</span>
           <strong>{{ pct(comparison.summary.table_match_rate) }}</strong>
+          <small>{{ comparison.summary.matched_tables }}/{{ comparison.summary.total_tables }}</small>
         </div>
         <div class="metric">
           <span>Figure match rate</span>
           <strong>{{ pct(comparison.summary.figure_match_rate) }}</strong>
+          <small>{{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }}</small>
         </div>
       </div>
       <p>Paper source: <code>{{ paper.source }}</code></p>
       <p>Package source: <code>{{ package.source }}</code></p>
-      <p>Sandbox root: <code>{{ sandbox.root }}</code></p>
     </section>
 
-    <section>
+    <section id="sandbox">
       <h2>Sandbox</h2>
       <table>
-        <thead>
-          <tr>
-            <th>Field</th>
-            <th>Value</th>
-          </tr>
-        </thead>
         <tbody>
           <tr><td>Enabled</td><td>{{ 'yes' if sandbox.enabled else 'no' }}</td></tr>
           <tr><td>Project root</td><td><code>{{ sandbox.project_root }}</code></td></tr>
-          <tr><td>Python executable</td><td><code>{{ sandbox.python_executable if sandbox.python_executable else 'system default' }}</code></td></tr>
-          <tr><td>R library dir</td><td><code>{{ sandbox.r_library_dir if sandbox.r_library_dir else 'system default' }}</code></td></tr>
+          <tr><td>Python</td><td><code>{{ sandbox.python_executable if sandbox.python_executable else 'system default' }}</code></td></tr>
+          <tr><td>R library</td><td><code>{{ sandbox.r_library_dir if sandbox.r_library_dir else 'system default' }}</code></td></tr>
         </tbody>
       </table>
     </section>
 
-    <section>
-      <h2>Agent Workflow</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Agent</th>
-            <th>Role</th>
-            <th>Phase</th>
-            <th>Status</th>
-            <th>Summary</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% for agent in agent_trace %}
-          <tr>
-            <td>{{ agent.name }}</td>
-            <td>{{ agent.role }}</td>
-            <td>{{ agent.phase }}</td>
-            <td class="{{ 'matched' if agent.status == 'success' else 'missing' if agent.status == 'failed' else 'warn' if agent.status in ['blocked', 'skipped'] else '' }}">{{ agent.status }}</td>
-            <td>{{ agent.summary }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
-    </section>
-
-    <section>
+    <section id="workflow">
       <h2>Skill Workflow</h2>
       <table>
-        <thead>
-          <tr>
-            <th>Skill</th>
-            <th>Agent</th>
-            <th>Phase</th>
-            <th>Status</th>
-            <th>Summary</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Skill</th><th>Agent</th><th>Phase</th><th>Status</th><th>Summary</th></tr></thead>
         <tbody>
         {% for skill in skill_trace %}
           <tr>
-            <td>{{ skill.name }}</td>
-            <td>{{ skill.agent }}</td>
-            <td>{{ skill.phase }}</td>
-            <td class="{{ 'matched' if skill.status == 'success' else 'missing' if skill.status == 'failed' else 'warn' if skill.status in ['blocked', 'skipped'] else '' }}">{{ skill.status }}</td>
+            <td>{{ skill.name }}</td><td>{{ skill.agent }}</td><td>{{ skill.phase }}</td>
+            <td class="{{ 'matched' if skill.status == 'success' else 'missing' if skill.status == 'failed' else 'warn' }}">{{ skill.status }}</td>
             <td>{{ skill.summary }}</td>
           </tr>
         {% endfor %}
@@ -292,87 +341,97 @@ HTML_TEMPLATE = """
       </table>
     </section>
 
-    <section>
-      <h2>Diagnostics</h2>
-      <ul>
+    <section id="diagnostics">
+      <h2>Diagnostics & Suggestions</h2>
       {% if diagnostic_notes %}
         {% for note in diagnostic_notes %}
-          <li>{{ note }}</li>
+          <div class="suggestion">{{ note }}</div>
         {% endfor %}
       {% else %}
-        <li>No additional workflow diagnostics were generated.</li>
+        <p>No issues detected.</p>
       {% endif %}
-      </ul>
+      {% if suggestions %}
+        <h3>Fix Suggestions</h3>
+        {% for suggestion in suggestions %}
+          <div class="suggestion">{{ suggestion }}</div>
+        {% endfor %}
+      {% endif %}
     </section>
 
-    <section>
+    <section id="bootstrap">
       <h2>Dependency Bootstrap</h2>
       <table>
-        <thead>
-          <tr>
-            <th>Step</th>
-            <th>Language</th>
-            <th>Status</th>
-            <th>Return code</th>
-            <th>Duration (s)</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Step</th><th>Language</th><th>Status</th><th>RC</th><th>Duration</th><th>Logs</th></tr></thead>
         <tbody>
         {% for record in sandbox.install_records %}
           <tr>
             <td><code>{{ record.label }}</code></td>
             <td>{{ record.language }}</td>
-            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' if record.status in ['blocked', 'skipped', 'timeout'] else '' }}">{{ record.status }}</td>
+            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' }}">{{ record.status }}</td>
             <td>{{ record.return_code if record.return_code is not none else '-' }}</td>
-            <td>{{ "%.3f"|format(record.duration_seconds) }}</td>
+            <td>{{ "%.1f"|format(record.duration_seconds) }}s</td>
+            <td>
+              {% if record.stderr_path %}
+                <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
+                <div class="log-preview">{{ log_content(record.stderr_path) }}</div>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
     </section>
 
-    <section>
+    <section id="execution">
       <h2>Execution</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Script</th>
-            <th>Language</th>
-            <th>Status</th>
-            <th>Return code</th>
-            <th>Duration (s)</th>
-          </tr>
-        </thead>
+      <div class="filter-bar">
+        <button class="active" onclick="filterTable(this, 'exec-table', 'all')">All</button>
+        <button onclick="filterTable(this, 'exec-table', 'success')">Success</button>
+        <button onclick="filterTable(this, 'exec-table', 'failed')">Failed</button>
+        <button onclick="filterTable(this, 'exec-table', 'blocked')">Blocked</button>
+        <button onclick="filterTable(this, 'exec-table', 'skipped')">Skipped</button>
+        <input type="text" placeholder="Search scripts..." oninput="searchTable(this, 'exec-table')">
+      </div>
+      <table id="exec-table">
+        <thead><tr><th>Script</th><th>Language</th><th>Status</th><th>RC</th><th>Duration</th><th>Logs</th></tr></thead>
         <tbody>
         {% for record in execution_records %}
-          <tr>
-            <td><code>{{ record.script_path }}</code></td>
+          <tr data-status="{{ record.status }}">
+            <td><code>{{ basename(record.script_path) }}</code></td>
             <td>{{ record.language }}</td>
-            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' if record.status in ['blocked', 'skipped', 'timeout'] else '' }}">{{ record.status }}</td>
+            <td class="{{ 'matched' if record.status == 'success' else 'missing' if record.status == 'failed' else 'warn' }}">{{ record.status }}{% if record.message %} <small>({{ record.message[:80] }})</small>{% endif %}</td>
             <td>{{ record.return_code if record.return_code is not none else '-' }}</td>
-            <td>{{ "%.3f"|format(record.duration_seconds) }}</td>
+            <td>{{ "%.1f"|format(record.duration_seconds) }}s</td>
+            <td>
+              {% if record.stderr_path %}
+                <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
+                <div class="log-preview">{{ log_content(record.stderr_path) }}</div>
+              {% endif %}
+              {% if record.stdout_path %}
+                <span class="log-toggle" onclick="toggleLog(this)">stdout</span>
+                <div class="log-preview">{{ log_content(record.stdout_path) }}</div>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
     </section>
 
-    <section>
+    <section id="tables">
       <h2>Table Comparison</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Paper table</th>
-            <th>Matched artifact</th>
-            <th>Score</th>
-            <th>Matched values</th>
-          </tr>
-        </thead>
+      <div class="filter-bar">
+        <button class="active" onclick="filterMatch(this, 'tbl-cmp', 'all')">All</button>
+        <button onclick="filterMatch(this, 'tbl-cmp', 'matched')">Matched</button>
+        <button onclick="filterMatch(this, 'tbl-cmp', 'missing')">Missing</button>
+      </div>
+      <table id="tbl-cmp">
+        <thead><tr><th>Paper table</th><th>Matched artifact</th><th>Score</th><th>Values</th></tr></thead>
         <tbody>
         {% for match in comparison.table_matches %}
-          <tr>
+          <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
             <td>Table {{ match.table_number }}: {{ match.table_title }}</td>
-            <td>{{ match.artifact_path if match.artifact_path else '—' }}</td>
+            <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
             <td>{{ "%.2f"|format(match.overlap_score) }}</td>
             <td>{{ match.matched_values }}/{{ match.paper_values }}</td>
           </tr>
@@ -381,21 +440,20 @@ HTML_TEMPLATE = """
       </table>
     </section>
 
-    <section>
+    <section id="figures">
       <h2>Figure Comparison</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Paper figure</th>
-            <th>Matched artifact</th>
-            <th>Score</th>
-          </tr>
-        </thead>
+      <div class="filter-bar">
+        <button class="active" onclick="filterMatch(this, 'fig-cmp', 'all')">All</button>
+        <button onclick="filterMatch(this, 'fig-cmp', 'matched')">Matched</button>
+        <button onclick="filterMatch(this, 'fig-cmp', 'missing')">Missing</button>
+      </div>
+      <table id="fig-cmp">
+        <thead><tr><th>Paper figure</th><th>Matched artifact</th><th>Score</th></tr></thead>
         <tbody>
         {% for match in comparison.figure_matches %}
-          <tr>
+          <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
             <td>Figure {{ match.figure_number }}: {{ match.caption }}</td>
-            <td>{{ match.artifact_path if match.artifact_path else '—' }}</td>
+            <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
             <td>{{ "%.2f"|format(match.score) }}</td>
           </tr>
         {% endfor %}
@@ -403,24 +461,22 @@ HTML_TEMPLATE = """
       </table>
     </section>
 
-    <section>
+    <section id="numerics">
       <h2>Numeric Comparison</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Paper claim</th>
-            <th>Source</th>
-            <th>Matched artifact</th>
-            <th>Score</th>
-            <th>Status</th>
-          </tr>
-        </thead>
+      <div class="filter-bar">
+        <button class="active" onclick="filterMatch(this, 'num-cmp', 'all')">All</button>
+        <button onclick="filterMatch(this, 'num-cmp', 'matched')">Matched</button>
+        <button onclick="filterMatch(this, 'num-cmp', 'missing')">Missing</button>
+        <input type="text" placeholder="Search claims..." oninput="searchTable(this, 'num-cmp')">
+      </div>
+      <table id="num-cmp">
+        <thead><tr><th>Claim</th><th>Source</th><th>Artifact</th><th>Score</th><th>Status</th></tr></thead>
         <tbody>
         {% for match in comparison.numeric_matches %}
-          <tr>
+          <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
             <td><code>{{ match.claim_raw }}</code></td>
             <td>{{ match.claim_source }}</td>
-            <td>{{ match.artifact_path if match.artifact_path else '—' }}</td>
+            <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
             <td>{{ "%.2f"|format(match.score) }}</td>
             <td class="{{ 'matched' if match.matched else 'missing' }}">{{ 'matched' if match.matched else 'missing' }}</td>
           </tr>
@@ -429,6 +485,51 @@ HTML_TEMPLATE = """
       </table>
     </section>
   </main>
+  <script>
+    function toggleLog(el) {
+      const pre = el.nextElementSibling || el.parentElement.querySelector('.log-preview');
+      if (!pre) return;
+      pre.style.display = pre.style.display === 'block' ? 'none' : 'block';
+    }
+    function filterTable(btn, tableId, status) {
+      btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+      });
+    }
+    function filterMatch(btn, tableId, status) {
+      btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = (status === 'all' || row.dataset.matched === status) ? '' : 'none';
+      });
+    }
+    function searchTable(input, tableId) {
+      const q = input.value.toLowerCase();
+      document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
+        row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+    document.querySelectorAll('th').forEach(th => {
+      th.addEventListener('click', () => {
+        const table = th.closest('table');
+        const idx = Array.from(th.parentElement.children).indexOf(th);
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        const asc = th.dataset.sort !== 'asc';
+        th.dataset.sort = asc ? 'asc' : 'desc';
+        rows.sort((a, b) => {
+          const va = a.children[idx]?.textContent || '';
+          const vb = b.children[idx]?.textContent || '';
+          const na = parseFloat(va), nb = parseFloat(vb);
+          if (!isNaN(na) && !isNaN(nb)) return asc ? na - nb : nb - na;
+          return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+        const tbody = table.querySelector('tbody');
+        rows.forEach(r => tbody.appendChild(r));
+      });
+    });
+  </script>
 </body>
 </html>
 """
@@ -446,8 +547,28 @@ def render_reports(
     diagnostic_notes: list[str],
 ) -> tuple[Path, Path]:
     ensure_dir(output_dir)
-    environment = Environment(trim_blocks=True, lstrip_blocks=True)
+    logger.info("Rendering reports to %s", output_dir)
+
+    suggestions = generate_suggestions(execution_records, comparison, sandbox, diagnostic_notes)
+
+    def log_content(path: str | None) -> str:
+        if not path:
+            return ""
+        text = read_text_safely(Path(path))
+        lines = text.strip().splitlines()
+        if len(lines) > 50:
+            lines = lines[-50:]
+        return "\n".join(lines) or "(empty)"
+
+    def basename(path: str | None) -> str:
+        if not path:
+            return ""
+        return Path(path).name
+
+    environment = Environment(trim_blocks=True, lstrip_blocks=True, autoescape=True)
     environment.globals["pct"] = lambda value: f"{value * 100:.1f}%"
+    environment.globals["log_content"] = log_content
+    environment.globals["basename"] = basename
     context = {
         "paper": paper,
         "package": package,
@@ -457,9 +578,12 @@ def render_reports(
         "agent_trace": agent_trace,
         "skill_trace": skill_trace,
         "diagnostic_notes": diagnostic_notes,
+        "suggestions": suggestions,
     }
 
-    markdown = environment.from_string(MARKDOWN_TEMPLATE).render(**context).strip() + "\n"
+    md_env = Environment(trim_blocks=True, lstrip_blocks=True)
+    md_env.globals["pct"] = lambda value: f"{value * 100:.1f}%"
+    markdown = md_env.from_string(MARKDOWN_TEMPLATE).render(**context).strip() + "\n"
     html = environment.from_string(HTML_TEMPLATE).render(**context)
 
     markdown_path = output_dir / "report.md"
@@ -467,3 +591,51 @@ def render_reports(
     markdown_path.write_text(markdown)
     html_path.write_text(html)
     return markdown_path, html_path
+
+
+def generate_suggestions(
+    execution_records: list[ExecutionRecord],
+    comparison: ComparisonBundle,
+    sandbox: SandboxManifest,
+    diagnostic_notes: list[str],
+) -> list[str]:
+    suggestions: list[str] = []
+
+    failed = [r for r in execution_records if r.status == "failed"]
+    blocked = [r for r in execution_records if r.status == "blocked"]
+    skipped = [r for r in execution_records if r.status == "skipped"]
+
+    if failed:
+        for r in failed[:3]:
+            stderr = ""
+            if r.stderr_path:
+                stderr = read_text_safely(Path(r.stderr_path)).strip().splitlines()[-3:] if Path(r.stderr_path).exists() else []
+                stderr = " | ".join(stderr) if stderr else ""
+            name = Path(r.script_path).name
+            if "ModuleNotFoundError" in stderr or "there is no package" in stderr.lower():
+                suggestions.append(f"{name}: Missing dependency. Check requirements.txt or install the package manually.")
+            elif "FileNotFoundError" in stderr or "cannot open" in stderr.lower():
+                suggestions.append(f"{name}: Missing input file. Ensure upstream scripts ran successfully first.")
+            else:
+                suggestions.append(f"{name}: Script failed (rc={r.return_code}). Check stderr log for details.")
+
+    if blocked:
+        suggestions.append(
+            f"{len(blocked)} script(s) blocked on missing inputs. "
+            "Run upstream scripts first or provide the required data files."
+        )
+
+    if skipped:
+        stata_skipped = [r for r in skipped if r.language == "stata"]
+        if stata_skipped:
+            suggestions.append(
+                "Stata scripts were skipped. Set --stata-bin or REPLICATION_MANAGER_STATA_BIN to execute .do files."
+            )
+
+    if comparison.summary.numeric_match_rate < 0.5 and comparison.summary.total_numeric_claims > 0:
+        suggestions.append(
+            "Low numeric match rate. This may indicate the package outputs use different formatting "
+            "or the scripts did not produce the expected output files."
+        )
+
+    return suggestions

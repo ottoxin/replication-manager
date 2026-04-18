@@ -9,9 +9,12 @@ import time
 import venv
 from pathlib import Path
 
+from .log import get_logger
 from .models import BootstrapRecord, PackageManifest, SandboxManifest
 from .package import discover_environment_files
 from .utils import ensure_dir, read_text_safely, slugify
+
+logger = get_logger("sandbox")
 
 CODEOCEAN_SCRIPT_SUFFIXES = {".py", ".r", ".do", ".sh"}
 CODEOCEAN_MOUNT_PATTERN = re.compile(r"(?<![A-Za-z0-9_./-])/(data|results|code)(?=[^A-Za-z0-9_]|$)")
@@ -26,6 +29,7 @@ def prepare_sandbox(
     install_dependencies: bool,
     timeout_seconds: int,
 ) -> SandboxManifest:
+    logger.info("Preparing sandbox (enabled=%s, install=%s)", enable, install_dependencies)
     if sandbox_root.exists():
         shutil.rmtree(sandbox_root)
     ensure_dir(sandbox_root)
@@ -83,6 +87,7 @@ def prepare_sandbox(
         environment_files = [Path(item) for item in discover_environment_files(project_root)]
         install_records.extend(bootstrap_python(project_root, environment_files, manifest, logs_dir, timeout_seconds))
         install_records.extend(bootstrap_r(project_root, environment_files, manifest, logs_dir, timeout_seconds))
+        install_records.extend(bootstrap_conda(project_root, environment_files, manifest, logs_dir, timeout_seconds))
     else:
         notes.append("Dependency bootstrap skipped by configuration.")
 
@@ -289,6 +294,63 @@ def bootstrap_r(
                 timeout_seconds=timeout_seconds,
             )
         )
+
+    return records
+
+
+def bootstrap_conda(
+    project_root: Path,
+    environment_files: list[Path],
+    sandbox: SandboxManifest,
+    logs_dir: Path,
+    timeout_seconds: int,
+) -> list[BootstrapRecord]:
+    conda_files = [
+        path for path in environment_files
+        if path.name.lower() in {"environment.yml", "environment.yaml"}
+    ]
+    if not conda_files:
+        return []
+
+    conda_bin = shutil.which("conda") or shutil.which("mamba") or shutil.which("micromamba")
+    if not conda_bin:
+        logger.warning("Conda environment files found but no conda/mamba/micromamba binary available")
+        return [
+            BootstrapRecord(
+                label="conda-not-found",
+                language="conda",
+                command=[],
+                return_code=None,
+                status="skipped",
+                duration_seconds=0.0,
+                message="No conda/mamba/micromamba binary found on PATH.",
+            )
+        ]
+
+    records: list[BootstrapRecord] = []
+    env = build_subprocess_env(sandbox, project_root)
+    conda_env_dir = Path(sandbox.root) / "conda_env"
+
+    for conda_file in sorted(conda_files):
+        label = f"conda-env-create-{slugify(str(conda_file.relative_to(project_root)))}"
+        command = [conda_bin, "env", "create", "-f", str(conda_file), "-p", str(conda_env_dir), "--yes"]
+        logger.info("Creating conda environment from %s", conda_file.name)
+        records.append(
+            run_bootstrap_command(
+                label=label,
+                language="conda",
+                command=command,
+                cwd=conda_file.parent,
+                env=env,
+                logs_dir=logs_dir,
+                timeout_seconds=timeout_seconds,
+            )
+        )
+        if records[-1].status == "success":
+            conda_python = conda_env_dir / "bin" / "python"
+            if conda_python.exists():
+                sandbox.python_executable = str(conda_python)
+                logger.info("Conda Python available at %s", conda_python)
 
     return records
 

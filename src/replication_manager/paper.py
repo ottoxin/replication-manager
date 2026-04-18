@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from html.parser import HTMLParser
+import importlib.util
 import shutil
 import re
 from pathlib import Path
 
 from pypdf import PdfReader
 
+from .log import get_logger
 from .models import FigureClaim, NumericClaim, PaperManifest, PaperTable
 from .utils import (
     download_file,
@@ -18,6 +20,8 @@ from .utils import (
     parse_numeric_token,
     read_text_safely,
 )
+
+logger = get_logger("paper")
 
 
 TABLE_PREFIX = "table "
@@ -70,12 +74,21 @@ def materialize_paper(source: str, inputs_dir: Path) -> Path:
 
 
 def extract_paper_manifest(paper_path: Path) -> PaperManifest:
+    logger.info("Extracting paper manifest from %s", paper_path.name)
     text = extract_text(paper_path)
     lines = [line.strip() for line in text.splitlines()]
     title = extract_title(lines, paper_path.stem)
     tables = extract_tables(lines)
     figures = extract_figures(lines)
+
+    if paper_path.suffix.lower() == ".pdf":
+        plumber_tables = extract_tables_with_pdfplumber(paper_path)
+        if plumber_tables:
+            logger.info("pdfplumber extracted %d structured tables", len(plumber_tables))
+            tables = merge_table_sources(tables, plumber_tables)
+
     claims = extract_numeric_claims(lines, tables)
+    logger.info("Found %d tables, %d figures, %d numeric claims", len(tables), len(figures), len(claims))
     return PaperManifest(
         source=str(paper_path),
         title=title,
@@ -463,3 +476,81 @@ def extract_html_text(raw_html: str) -> str:
     parser = HTMLTextExtractor()
     parser.feed(raw_html)
     return parser.text()
+
+
+def extract_tables_with_pdfplumber(paper_path: Path) -> list[PaperTable]:
+    if not importlib.util.find_spec("pdfplumber"):
+        logger.debug("pdfplumber not installed; skipping structured table extraction")
+        return []
+    try:
+        import pdfplumber
+    except ImportError:
+        return []
+
+    tables: list[PaperTable] = []
+    try:
+        with pdfplumber.open(str(paper_path)) as pdf:
+            table_counter = 0
+            for page_num, page in enumerate(pdf.pages, start=1):
+                page_text = page.extract_text() or ""
+                extracted = page.extract_tables()
+                if not extracted:
+                    continue
+                for raw_table in extracted:
+                    if not raw_table or len(raw_table) < 2:
+                        continue
+                    table_counter += 1
+                    number, title = _identify_table_from_page(page_text, table_counter)
+                    rows = [[cell or "" for cell in row] for row in raw_table if row]
+                    body = "\n".join(["\t".join(row) for row in rows])
+                    claims: list[NumericClaim] = []
+                    for row in rows:
+                        for cell in row:
+                            for token in numeric_tokens(cell):
+                                value, decimals = parse_numeric_token(token)
+                                if not should_keep_numeric_claim(token, value, decimals):
+                                    continue
+                                claims.append(NumericClaim(
+                                    raw=token,
+                                    value=value,
+                                    decimals=decimals,
+                                    context=normalize_document_text(body[:200]),
+                                    source=f"Table {number} (pdfplumber p{page_num})",
+                                ))
+                    tables.append(PaperTable(
+                        number=number,
+                        title=title,
+                        body=body,
+                        numeric_claims=claims,
+                    ))
+    except Exception as exc:
+        logger.warning("pdfplumber extraction failed: %s", exc)
+    return tables
+
+
+def _identify_table_from_page(page_text: str, fallback_counter: int) -> tuple[str, str]:
+    for line in page_text.splitlines():
+        stripped = line.strip()
+        if is_caption_line(stripped, TABLE_PREFIX):
+            number, title = split_number_and_title(stripped, TABLE_PREFIX)
+            return number, title
+    return str(fallback_counter), f"Extracted table {fallback_counter}"
+
+
+def merge_table_sources(text_tables: list[PaperTable], plumber_tables: list[PaperTable]) -> list[PaperTable]:
+    text_numbers = {t.number for t in text_tables}
+    merged = list(text_tables)
+    for pt in plumber_tables:
+        if pt.number not in text_numbers:
+            merged.append(pt)
+        else:
+            for i, tt in enumerate(merged):
+                if tt.number == pt.number and len(pt.numeric_claims) > len(tt.numeric_claims):
+                    merged[i] = PaperTable(
+                        number=tt.number,
+                        title=tt.title or pt.title,
+                        body=pt.body,
+                        numeric_claims=pt.numeric_claims,
+                    )
+                    break
+    return merged
