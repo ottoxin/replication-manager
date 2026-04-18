@@ -213,6 +213,7 @@ class PipelineTests(unittest.TestCase):
                 "profile_paper",
                 "inspect_package",
                 "prepare_workspace",
+                "screen_package",
                 "execute_package",
                 "diagnose_execution",
                 "match_outputs",

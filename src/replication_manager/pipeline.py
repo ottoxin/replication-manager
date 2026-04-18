@@ -16,8 +16,9 @@ def run_pipeline(
     install_dependencies: bool = True,
     timeout_seconds: int = 600,
     stata_bin: str | None = None,
+    skip_heavy: bool = False,
 ) -> RunResult:
-    """Run the full replication pipeline: intake → profile → inspect → sandbox → execute → compare → report."""
+    """Run the full replication pipeline: intake -> profile -> inspect -> screen -> sandbox -> execute -> compare -> report."""
     return run_agentic_workflow(
         paper_source=paper_source,
         package_source=package_source,
@@ -27,4 +28,5 @@ def run_pipeline(
         install_dependencies=install_dependencies,
         timeout_seconds=timeout_seconds,
         stata_bin=stata_bin,
+        skip_heavy=skip_heavy,
     )

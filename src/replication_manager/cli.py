@@ -20,6 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--no-sandbox", action="store_true", help="Run directly without sandbox isolation.")
     run_parser.add_argument("--no-install", action="store_true", help="Skip dependency bootstrap.")
     run_parser.add_argument("--no-execute", action="store_true", help="Inspect only; don't run scripts.")
+    run_parser.add_argument("--skip-heavy", action="store_true",
+                            help="Skip GPU and heavy-compute scripts; replicate from intermediate results only.")
     run_parser.add_argument("--timeout-seconds", type=int, default=600, help="Per-script timeout.")
     run_parser.add_argument("--stata-bin", default=None, help="Stata binary path for .do execution.")
     run_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -42,6 +44,7 @@ def main() -> None:
             install_dependencies=not args.no_install,
             timeout_seconds=args.timeout_seconds,
             stata_bin=args.stata_bin,
+            skip_heavy=args.skip_heavy,
         )
         summary = result.comparison.summary
         print(f"Verdict: {summary.verdict}")

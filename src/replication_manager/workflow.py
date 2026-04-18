@@ -7,8 +7,6 @@ from typing import Callable
 from .agents import build_agent_trace
 from .compare import comparable_figure_artifacts, comparable_table_artifacts, compare_manifests
 from .log import get_logger
-
-logger = get_logger("workflow")
 from .models import (
     AgentRecord,
     ComparisonBundle,
@@ -24,7 +22,15 @@ from .paper import extract_paper_manifest, materialize_paper
 from .reporting import render_reports
 from .runner import execute_scripts
 from .sandbox import prepare_sandbox
+from .screening import (
+    ScreeningReport,
+    filter_reproducible_figures,
+    filter_runnable_scripts,
+    screen_package,
+)
 from .utils import ensure_dir, read_text_safely, write_json
+
+logger = get_logger("workflow")
 
 
 @dataclass
@@ -37,6 +43,7 @@ class WorkflowState:
     install_dependencies: bool
     timeout_seconds: int
     stata_bin: str | None
+    skip_heavy: bool
     inputs_dir: Path = field(init=False)
     workspace_dir: Path = field(init=False)
     artifacts_dir: Path = field(init=False)
@@ -50,6 +57,8 @@ class WorkflowState:
     raw_package_manifest: PackageManifest | None = None
     sandbox_manifest: SandboxManifest | None = None
     package_manifest: PackageManifest | None = None
+    screening_report: ScreeningReport | None = None
+    screening_complete: bool = False
     execution_records: list[ExecutionRecord] = field(default_factory=list)
     comparison: ComparisonBundle | None = None
     report_markdown: Path | None = None
@@ -90,6 +99,7 @@ def run_agentic_workflow(
     install_dependencies: bool = True,
     timeout_seconds: int = 600,
     stata_bin: str | None = None,
+    skip_heavy: bool = False,
 ) -> RunResult:
     state = WorkflowState(
         paper_source=paper_source,
@@ -100,6 +110,7 @@ def run_agentic_workflow(
         install_dependencies=install_dependencies,
         timeout_seconds=timeout_seconds,
         stata_bin=stata_bin,
+        skip_heavy=skip_heavy,
     )
     skills = default_skills()
     max_steps = len(skills) + 2
@@ -162,6 +173,17 @@ def default_skills() -> list[WorkflowSkill]:
             phase="Phase A",
             should_run=lambda state: state.sandbox_manifest is None and state.raw_package_manifest is not None,
             run=skill_prepare_workspace,
+        ),
+        WorkflowSkill(
+            name="screen_package",
+            agent="Coordinator",
+            phase="Phase A",
+            should_run=lambda state: (
+                state.package_manifest is not None
+                and state.paper_manifest is not None
+                and not state.screening_complete
+            ),
+            run=skill_screen_package,
         ),
         WorkflowSkill(
             name="execute_package",
@@ -277,6 +299,77 @@ def skill_prepare_workspace(state: WorkflowState) -> SkillRecord:
     )
 
 
+def skill_screen_package(state: WorkflowState) -> SkillRecord:
+    paper = require(state.paper_manifest, "paper manifest")
+    package = require(state.package_manifest, "package manifest")
+    report = screen_package(paper, package)
+    state.screening_report = report
+    state.screening_complete = True
+    write_json(state.artifacts_dir / "screening_report.json", {
+        "total_scripts": report.total_scripts,
+        "runnable_scripts": report.runnable_scripts,
+        "skipped_scripts": report.skipped_scripts,
+        "gpu_scripts": report.gpu_scripts,
+        "heavy_scripts": report.heavy_scripts,
+        "lightweight_scripts": report.lightweight_scripts,
+        "compute_estimate": report.compute_estimate,
+        "recommendations": report.recommendations,
+        "available_data": report.available_data,
+        "missing_data": report.missing_data,
+        "script_classifications": [
+            {"path": s.path, "category": s.category, "reason": s.reason, "runnable": s.runnable}
+            for s in report.script_classifications
+        ],
+        "figure_classifications": [
+            {"number": f.number, "caption": f.caption, "category": f.category, "reason": f.reason}
+            for f in report.figure_classifications
+        ],
+    })
+
+    if state.skip_heavy and report.skipped_scripts > 0:
+        filtered = filter_runnable_scripts(package.scripts, report.script_classifications)
+        state.package_manifest = PackageManifest(
+            source=package.source,
+            root=package.root,
+            scripts=filtered,
+            table_artifacts=package.table_artifacts,
+            figure_artifacts=package.figure_artifacts,
+            environment_files=package.environment_files,
+            notes=package.notes + [
+                f"Screening filtered scripts: {len(filtered)} runnable, "
+                f"{report.skipped_scripts} skipped (GPU/heavy-compute/missing-data)."
+            ],
+        )
+        logger.info("--skip-heavy: filtered to %d runnable scripts", len(filtered))
+
+    manual_figs = [f for f in report.figure_classifications if f.category == "manual"]
+    if manual_figs:
+        state.paper_manifest = PaperManifest(
+            source=paper.source,
+            title=paper.title,
+            line_count=paper.line_count,
+            numeric_claims=paper.numeric_claims,
+            tables=paper.tables,
+            figures=filter_reproducible_figures(paper.figures, report.figure_classifications),
+        )
+        logger.info("Excluded %d manually-created figure(s) from comparison", len(manual_figs))
+
+    state.diagnostic_notes.extend(report.recommendations)
+
+    return SkillRecord(
+        name="screen_package",
+        agent="Coordinator",
+        phase="Phase A",
+        status="success",
+        summary=(
+            f"Screened {report.total_scripts} scripts: {report.runnable_scripts} runnable, "
+            f"{report.gpu_scripts} GPU, {report.heavy_scripts} heavy-compute. "
+            f"Compute estimate: {report.compute_estimate}."
+        ),
+        artifact_paths=[],
+    )
+
+
 def skill_execute_package(state: WorkflowState) -> SkillRecord:
     package_manifest = require(state.package_manifest, "package manifest")
     sandbox_manifest = require(state.sandbox_manifest, "sandbox manifest")
@@ -359,6 +452,7 @@ def skill_write_report(state: WorkflowState) -> SkillRecord:
         agent_trace=[],
         skill_trace=state.skill_trace,
         diagnostic_notes=state.diagnostic_notes,
+        screening=state.screening_report,
     )
     state.report_written = True
     return SkillRecord(
@@ -485,6 +579,7 @@ def finalize_workflow(state: WorkflowState) -> None:
         agent_trace=state.agent_trace,
         skill_trace=state.skill_trace,
         diagnostic_notes=state.diagnostic_notes,
+        screening=state.screening_report,
     )
     write_json(state.artifacts_dir / "agent_trace.json", state.agent_trace)
     persist_artifacts(state)

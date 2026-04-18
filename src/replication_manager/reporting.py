@@ -68,6 +68,39 @@ MARKDOWN_TEMPLATE = """
 | {{ skill.name }} | {{ skill.agent }} | {{ skill.phase }} | {{ skill.status }} | {{ skill.summary }} |
 {% endfor %}
 
+{% if screening %}
+## Screening
+
+- Compute estimate: {{ screening.compute_estimate }}
+- Total scripts: {{ screening.total_scripts }} ({{ screening.runnable_scripts }} runnable, {{ screening.gpu_scripts }} GPU, {{ screening.heavy_scripts }} heavy)
+- Available data: {{ screening.available_data | length }} source(s)
+- Missing data: {{ screening.missing_data | length }} file(s)
+
+### Script Classifications
+
+| Script | Category | Runnable | Reason |
+| --- | --- | --- | --- |
+{% for s in screening.script_classifications -%}
+| `{{ s.path }}` | {{ s.category }} | {{ "yes" if s.runnable else "no" }} | {{ s.reason }} |
+{% endfor %}
+
+{% if screening.figure_classifications %}
+### Figure Classifications
+
+| Figure | Category | Reason |
+| --- | --- | --- |
+{% for f in screening.figure_classifications -%}
+| Figure {{ f.number }}: {{ f.caption }} | {{ f.category }} | {{ f.reason }} |
+{% endfor %}
+{% endif %}
+
+### Recommendations
+
+{% for rec in screening.recommendations -%}
+- {{ rec }}
+{% endfor %}
+{% endif %}
+
 ## Diagnostics
 
 {% if diagnostic_notes -%}
@@ -280,6 +313,7 @@ HTML_TEMPLATE = """
     <strong>Sections</strong>
     <a href="#summary">Summary</a>
     <a href="#sandbox">Sandbox</a>
+    <a href="#screening">Screening</a>
     <a href="#workflow">Workflow</a>
     <a href="#diagnostics">Diagnostics</a>
     <a href="#bootstrap">Bootstrap</a>
@@ -324,6 +358,78 @@ HTML_TEMPLATE = """
         </tbody>
       </table>
     </section>
+
+    {% if screening %}
+    <section id="screening">
+      <h2>Screening</h2>
+      <div class="metrics">
+        <div class="metric">
+          <span>Compute estimate</span>
+          <strong style="font-size:1rem">{{ screening.compute_estimate }}</strong>
+        </div>
+        <div class="metric">
+          <span>Runnable</span>
+          <strong>{{ screening.runnable_scripts }}/{{ screening.total_scripts }}</strong>
+        </div>
+        <div class="metric">
+          <span>GPU required</span>
+          <strong>{{ screening.gpu_scripts }}</strong>
+        </div>
+        <div class="metric">
+          <span>Heavy compute</span>
+          <strong>{{ screening.heavy_scripts }}</strong>
+        </div>
+      </div>
+      {% if screening.available_data %}
+      <h3>Available Data</h3>
+      <ul>{% for d in screening.available_data %}<li>{{ d }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if screening.missing_data %}
+      <h3>Missing Data</h3>
+      <ul>{% for d in screening.missing_data %}<li><code>{{ d }}</code></li>{% endfor %}</ul>
+      {% endif %}
+      <h3>Script Classifications</h3>
+      <div class="filter-bar">
+        <button class="active" onclick="filterTable(this, 'screen-table', 'all')">All</button>
+        <button onclick="filterTable(this, 'screen-table', 'lightweight')">Lightweight</button>
+        <button onclick="filterTable(this, 'screen-table', 'gpu_required')">GPU</button>
+        <button onclick="filterTable(this, 'screen-table', 'heavy_compute')">Heavy</button>
+        <button onclick="filterTable(this, 'screen-table', 'data_processing')">Missing Data</button>
+      </div>
+      <table id="screen-table">
+        <thead><tr><th>Script</th><th>Category</th><th>Runnable</th><th>Reason</th></tr></thead>
+        <tbody>
+        {% for s in screening.script_classifications %}
+          <tr data-status="{{ s.category }}">
+            <td><code>{{ basename(s.path) }}</code></td>
+            <td class="{{ 'matched' if s.category == 'lightweight' else 'warn' if s.category == 'heavy_compute' else 'missing' if s.category == 'gpu_required' else 'warn' }}">{{ s.category }}</td>
+            <td>{{ "yes" if s.runnable else "no" }}</td>
+            <td>{{ s.reason }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% if screening.figure_classifications %}
+      <h3>Figure Classifications</h3>
+      <table>
+        <thead><tr><th>Figure</th><th>Category</th><th>Reason</th></tr></thead>
+        <tbody>
+        {% for f in screening.figure_classifications %}
+          <tr>
+            <td>Figure {{ f.number }}: {{ f.caption }}</td>
+            <td class="{{ 'matched' if f.category == 'reproducible' else 'warn' if f.category == 'manual' else '' }}">{{ f.category }}</td>
+            <td>{{ f.reason }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+      <h3>Recommendations</h3>
+      {% for rec in screening.recommendations %}
+        <div class="suggestion">{{ rec }}</div>
+      {% endfor %}
+    </section>
+    {% endif %}
 
     <section id="workflow">
       <h2>Skill Workflow</h2>
@@ -545,6 +651,7 @@ def render_reports(
     agent_trace: list[AgentRecord],
     skill_trace: list[SkillRecord],
     diagnostic_notes: list[str],
+    screening=None,
 ) -> tuple[Path, Path]:
     ensure_dir(output_dir)
     logger.info("Rendering reports to %s", output_dir)
@@ -579,6 +686,7 @@ def render_reports(
         "skill_trace": skill_trace,
         "diagnostic_notes": diagnostic_notes,
         "suggestions": suggestions,
+        "screening": screening,
     }
 
     md_env = Environment(trim_blocks=True, lstrip_blocks=True)
