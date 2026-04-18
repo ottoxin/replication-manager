@@ -868,7 +868,7 @@ def render_reports(
         ext = Path(path).suffix.lower().lstrip(".")
         return {"jpg": "jpeg"}.get(ext, ext)
 
-    paper_figure_images = _extract_pdf_figures(paper.source)
+    paper_figure_images = _extract_pdf_figures(paper.source, package.root)
 
     environment = Environment(trim_blocks=True, lstrip_blocks=True, autoescape=True)
     environment.globals["pct"] = lambda value: f"{value * 100:.1f}%"
@@ -902,8 +902,29 @@ def render_reports(
     return markdown_path, html_path
 
 
-def _extract_pdf_figures(paper_source: str) -> dict[str, str]:
-    """Try to extract figure images from PDF pages. Returns {figure_number: base64_png}."""
+def _extract_pdf_figures(paper_source: str, package_root: str | None = None) -> dict[str, str]:
+    """Extract figure images from PDF pages and/or article HTML.
+
+    Returns {figure_number: base64_image_data}.
+    Tries two strategies:
+    1. Render PDF pages containing figure captions as PNG
+    2. Download figure images from the article HTML (Nature, Springer, etc.)
+    """
+    figures: dict[str, str] = {}
+    figures.update(_extract_figures_from_pdf(paper_source))
+    html_figures = _download_figures_from_html(paper_source, package_root)
+    for key, val in html_figures.items():
+        if key not in figures:
+            figures[key] = val
+    if figures:
+        logger.info("Extracted %d figure images for side-by-side comparison", len(figures))
+    return figures
+
+
+def _extract_figures_from_pdf(paper_source: str) -> dict[str, str]:
+    import io
+    import re
+
     p = Path(paper_source)
     if not p.exists() or p.suffix.lower() != ".pdf":
         return {}
@@ -912,29 +933,117 @@ def _extract_pdf_figures(paper_source: str) -> dict[str, str]:
     except ImportError:
         return {}
 
+    fig_pattern = re.compile(
+        r"(?:Extended\s+Data\s+)?(?:Fig(?:ure|\.)?)\s*(\d+[a-z]?)",
+        re.IGNORECASE,
+    )
+
     figures: dict[str, str] = {}
     try:
         with pdfplumber.open(p) as pdf:
             for page in pdf.pages:
                 text = page.extract_text() or ""
-                import re
-                fig_refs = re.findall(r"(?:Fig(?:ure|\.)\s*(\d+[a-z]?))", text, re.IGNORECASE)
-                if not fig_refs:
+                matches = fig_pattern.findall(text)
+                if not matches:
                     continue
-                for fig_num in fig_refs:
-                    if fig_num in figures:
+                is_extended = bool(re.search(r"Extended\s+Data\s+Fig", text, re.IGNORECASE))
+                page_img = None
+                for fig_num in matches:
+                    key = f"E{fig_num}" if is_extended else fig_num
+                    if key in figures:
                         continue
-                    try:
-                        img = page.to_image(resolution=150)
-                        import io
-                        buf = io.BytesIO()
-                        img.save(buf, format="PNG")
-                        figures[fig_num] = base64.b64encode(buf.getvalue()).decode("ascii")
-                    except Exception:
-                        continue
-                    break
+                    if page_img is None:
+                        try:
+                            img = page.to_image(resolution=150)
+                            buf = io.BytesIO()
+                            img.save(buf, format="PNG")
+                            page_img = base64.b64encode(buf.getvalue()).decode("ascii")
+                        except Exception:
+                            break
+                    figures[key] = page_img
     except Exception:
         pass
+    return figures
+
+
+def _download_figures_from_html(paper_source: str, package_root: str | None = None) -> dict[str, str]:
+    """Download figure images from the article HTML page.
+
+    Looks for an HTML file in the inputs directory, package root,
+    or parent directories.
+    """
+    import re
+    import subprocess
+
+    search_dirs = [Path(paper_source).parent]
+    if package_root:
+        search_dirs.append(Path(package_root))
+        original_root = Path(package_root)
+        while original_root.name in ("project", "sandbox"):
+            original_root = original_root.parent
+        search_dirs.append(original_root)
+
+    html_files: list[Path] = []
+    for d in search_dirs:
+        html_files.extend(d.glob("*.html"))
+        html_files.extend(d.glob("*.htm"))
+    html_content = ""
+    for hf in html_files:
+        try:
+            html_content = hf.read_text(errors="replace")
+            if "figure" in html_content.lower() or "Fig" in html_content:
+                break
+        except Exception:
+            continue
+
+    if not html_content:
+        return {}
+
+    figures: dict[str, str] = {}
+
+    main_fig_pattern = re.compile(
+        r'src="((?:https?:)?//[^"]*?Fig(\d+)_HTML\.[a-z]+)"',
+        re.IGNORECASE,
+    )
+    for match in main_fig_pattern.finditer(html_content):
+        url = match.group(1)
+        if url.startswith("//"):
+            url = "https:" + url
+        fig_num = match.group(2)
+        if fig_num in figures:
+            continue
+        try:
+            result = subprocess.run(
+                ["curl", "-sL", "--max-time", "15", url],
+                capture_output=True, timeout=20,
+            )
+            if result.returncode == 0 and len(result.stdout) > 1000:
+                figures[fig_num] = base64.b64encode(result.stdout).decode("ascii")
+        except Exception:
+            continue
+
+    ext_fig_pattern = re.compile(
+        r'(?:src|data-supp-info-image)="((?:https?:)?//[^"]*?Fig(\d+)_ESM\.[a-z]+)"',
+        re.IGNORECASE,
+    )
+    for match in ext_fig_pattern.finditer(html_content):
+        url = match.group(1)
+        if url.startswith("//"):
+            url = "https:" + url
+        raw_num = int(match.group(2))
+        fig_key = f"E{raw_num - 4}" if raw_num > 4 else str(raw_num)
+        if fig_key in figures:
+            continue
+        try:
+            result = subprocess.run(
+                ["curl", "-sL", "--max-time", "15", url],
+                capture_output=True, timeout=20,
+            )
+            if result.returncode == 0 and len(result.stdout) > 1000:
+                figures[fig_key] = base64.b64encode(result.stdout).decode("ascii")
+        except Exception:
+            continue
+
     return figures
 
 

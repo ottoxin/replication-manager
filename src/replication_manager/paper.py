@@ -331,16 +331,16 @@ def is_caption_line(line: str, prefix: str) -> bool:
         return False
     number = []
     for char in body:
-        if char.isdigit():
+        if char.isdigit() or (char.isalpha() and number and len(number) <= 3):
             number.append(char)
             continue
         break
-    if not number:
+    if not number or not any(c.isdigit() for c in number):
         return False
     remainder = body[len(number) :].lstrip()
     if not remainder:
-        return False
-    return remainder.startswith(".") or remainder.startswith(":")
+        return True
+    return remainder[0] in ".:|,"
 
 
 def collect_first_page_lines(lines: list[str]) -> list[str]:

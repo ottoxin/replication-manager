@@ -218,6 +218,7 @@ def default_skills() -> list[WorkflowSkill]:
 
 def skill_intake_sources(state: WorkflowState) -> SkillRecord:
     state.paper_path = materialize_paper(state.paper_source, state.inputs_dir)
+    _try_fetch_article_html(state.paper_source, state.inputs_dir)
     state.package_input, state.extracted_package_root = materialize_package(
         state.package_source,
         state.inputs_dir,
@@ -234,6 +235,27 @@ def skill_intake_sources(state: WorkflowState) -> SkillRecord:
         ),
         artifact_paths=[str(state.paper_path), str(state.package_input)],
     )
+
+
+def _try_fetch_article_html(paper_source: str, inputs_dir: Path) -> None:
+    """If the paper source looks like a journal URL, fetch the HTML for figure extraction."""
+    import subprocess
+
+    if not paper_source.startswith("http"):
+        return
+    html_path = inputs_dir / "article.html"
+    if html_path.exists():
+        return
+    try:
+        result = subprocess.run(
+            ["curl", "-sL", "--max-time", "30", paper_source],
+            capture_output=True, timeout=35,
+        )
+        if result.returncode == 0 and len(result.stdout) > 5000:
+            html_path.write_bytes(result.stdout)
+            logger.info("Saved article HTML for figure extraction")
+    except Exception:
+        pass
 
 
 def skill_profile_paper(state: WorkflowState) -> SkillRecord:
