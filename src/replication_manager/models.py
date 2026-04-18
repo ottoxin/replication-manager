@@ -134,6 +134,8 @@ class TableMatch:
     overlap_score: float = 0.0
     matched_values: int = 0
     paper_values: int = 0
+    paper_body: str | None = None
+    artifact_preview: str | None = None
 
 
 @dataclass
@@ -143,6 +145,7 @@ class FigureMatch:
     matched: bool
     artifact_path: str | None = None
     score: float = 0.0
+    image_similarity: float | None = None
 
 
 @dataclass

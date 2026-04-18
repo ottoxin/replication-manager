@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from jinja2 import Environment
@@ -127,6 +128,26 @@ MARKDOWN_TEMPLATE = """
 | Table {{ match.table_number }}: {{ match.table_title }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.overlap_score) }} | {{ match.matched_values }}/{{ match.paper_values }} |
 {% endfor %}
 
+{% for match in comparison.table_matches %}
+{% if match.paper_body or match.artifact_preview %}
+### Table {{ match.table_number }}: {{ match.table_title }}
+
+<details>
+<summary>Side-by-side comparison</summary>
+
+**Published (Paper):**
+```
+{{ match.paper_body if match.paper_body else "(not extracted)" }}
+```
+
+**Replicated (Artifact):**
+```
+{{ match.artifact_preview if match.artifact_preview else "(no artifact)" }}
+```
+</details>
+{% endif %}
+{% endfor %}
+
 ## Figure Comparison
 
 | Paper figure | Matched artifact | Score |
@@ -137,10 +158,10 @@ MARKDOWN_TEMPLATE = """
 
 ## Numeric Comparison
 
-| Paper claim | Source | Matched artifact | Score | Status |
-| --- | --- | --- | ---: | --- |
+| Paper claim | Source | Paper value | Artifact value | Artifact | Score | Status |
+| --- | --- | ---: | ---: | --- | ---: | --- |
 {% for match in comparison.numeric_matches -%}
-| `{{ match.claim_raw }}` | {{ match.claim_source }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.score) }} | {{ "matched" if match.matched else "missing" }} |
+| `{{ match.claim_raw }}` | {{ match.claim_source }} | {{ match.claim_value }} | {{ match.artifact_value if match.artifact_value is not none else "—" }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.score) }} | {{ "matched" if match.matched else "missing" }} |
 {% endfor %}
 """
 
@@ -282,6 +303,98 @@ HTML_TEMPLATE = """
       font-size: 0.85rem;
     }
     .collapsible { transition: max-height 0.3s ease; overflow: hidden; }
+    .side-by-side {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 8px 0;
+    }
+    .side-panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      overflow-x: auto;
+    }
+    .side-panel h4 {
+      margin: 0 0 8px;
+      font-size: 0.85rem;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .side-panel pre {
+      margin: 0;
+      font-family: monospace;
+      font-size: 0.78rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .figure-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 10px 0;
+      align-items: start;
+    }
+    .figure-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+    .figure-card h4 {
+      margin: 0 0 8px;
+      font-size: 0.85rem;
+      color: var(--accent);
+    }
+    .figure-card img {
+      max-width: 100%;
+      max-height: 400px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+    }
+    .figure-card .no-image {
+      padding: 40px;
+      color: var(--muted);
+      font-style: italic;
+    }
+    .detail-toggle {
+      cursor: pointer;
+      color: var(--accent);
+      text-decoration: underline;
+      font-size: 0.85rem;
+    }
+    .detail-panel {
+      display: none;
+      margin-top: 6px;
+    }
+    .numeric-pair {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .numeric-pair .paper-val {
+      background: #fef3e0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .numeric-pair .artifact-val {
+      background: #e8f5e9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85rem;
+    }
+    .numeric-pair .arrow { color: var(--muted); }
+    @media (max-width: 768px) {
+      .side-by-side, .figure-pair { grid-template-columns: 1fr; }
+    }
     .suggestion {
       background: #fef9e7;
       border-left: 4px solid var(--warn);
@@ -532,7 +645,7 @@ HTML_TEMPLATE = """
         <button onclick="filterMatch(this, 'tbl-cmp', 'missing')">Missing</button>
       </div>
       <table id="tbl-cmp">
-        <thead><tr><th>Paper table</th><th>Matched artifact</th><th>Score</th><th>Values</th></tr></thead>
+        <thead><tr><th>Paper table</th><th>Matched artifact</th><th>Score</th><th>Values</th><th>Details</th></tr></thead>
         <tbody>
         {% for match in comparison.table_matches %}
           <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
@@ -540,7 +653,28 @@ HTML_TEMPLATE = """
             <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
             <td>{{ "%.2f"|format(match.overlap_score) }}</td>
             <td>{{ match.matched_values }}/{{ match.paper_values }}</td>
+            <td>
+              {% if match.paper_body or match.artifact_preview %}
+                <span class="detail-toggle" onclick="toggleDetail(this)">compare</span>
+              {% endif %}
+            </td>
           </tr>
+          {% if match.paper_body or match.artifact_preview %}
+          <tr class="detail-panel" data-matched="{{ 'matched' if match.matched else 'missing' }}">
+            <td colspan="5">
+              <div class="side-by-side">
+                <div class="side-panel">
+                  <h4>Published (Paper)</h4>
+                  <pre>{{ match.paper_body if match.paper_body else '(not extracted)' }}</pre>
+                </div>
+                <div class="side-panel">
+                  <h4>Replicated (Artifact)</h4>
+                  <pre>{{ match.artifact_preview if match.artifact_preview else '(no artifact)' }}</pre>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
         {% endfor %}
         </tbody>
       </table>
@@ -549,22 +683,42 @@ HTML_TEMPLATE = """
     <section id="figures">
       <h2>Figure Comparison</h2>
       <div class="filter-bar">
-        <button class="active" onclick="filterMatch(this, 'fig-cmp', 'all')">All</button>
-        <button onclick="filterMatch(this, 'fig-cmp', 'matched')">Matched</button>
-        <button onclick="filterMatch(this, 'fig-cmp', 'missing')">Missing</button>
+        <button class="active" onclick="filterFigures('all')">All</button>
+        <button onclick="filterFigures('matched')">Matched</button>
+        <button onclick="filterFigures('missing')">Missing</button>
       </div>
-      <table id="fig-cmp">
-        <thead><tr><th>Paper figure</th><th>Matched artifact</th><th>Score</th></tr></thead>
-        <tbody>
-        {% for match in comparison.figure_matches %}
-          <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
-            <td>Figure {{ match.figure_number }}: {{ match.caption }}</td>
-            <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
-            <td>{{ "%.2f"|format(match.score) }}</td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+      {% for match in comparison.figure_matches %}
+      <div class="figure-entry" data-fig-status="{{ 'matched' if match.matched else 'missing' }}" style="margin-bottom: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <strong>Figure {{ match.figure_number }}: {{ match.caption[:120] }}</strong>
+          <span class="{{ 'matched' if match.matched else 'missing' }}">{{ 'matched' if match.matched else 'missing' }} ({{ "%.2f"|format(match.score) }})</span>
+        </div>
+        <div class="figure-pair">
+          <div class="figure-card">
+            <h4>Published (Paper)</h4>
+            {% if paper_figure_images and match.figure_number in paper_figure_images %}
+              <img src="data:image/png;base64,{{ paper_figure_images[match.figure_number] }}" alt="Paper Figure {{ match.figure_number }}">
+            {% else %}
+              <div class="no-image">Figure from paper (extract PDF to view)</div>
+            {% endif %}
+          </div>
+          <div class="figure-card">
+            <h4>Replicated (Artifact)</h4>
+            {% if match.artifact_path and embed_image(match.artifact_path) %}
+              <img src="data:image/{{ image_ext(match.artifact_path) }};base64,{{ embed_image(match.artifact_path) }}" alt="Replicated Figure {{ match.figure_number }}">
+            {% else %}
+              <div class="no-image">{{ basename(match.artifact_path) if match.artifact_path else 'No artifact found' }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% if match.image_similarity is not none %}
+          <small style="color:var(--muted);">Image similarity: {{ "%.1f"|format(match.image_similarity * 100) }}%</small>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% if not comparison.figure_matches %}
+        <p>No figures to compare.</p>
+      {% endif %}
     </section>
 
     <section id="numerics">
@@ -576,12 +730,20 @@ HTML_TEMPLATE = """
         <input type="text" placeholder="Search claims..." oninput="searchTable(this, 'num-cmp')">
       </div>
       <table id="num-cmp">
-        <thead><tr><th>Claim</th><th>Source</th><th>Artifact</th><th>Score</th><th>Status</th></tr></thead>
+        <thead><tr><th>Paper claim</th><th>Source</th><th>Paper value</th><th>Artifact value</th><th>Artifact</th><th>Score</th><th>Status</th></tr></thead>
         <tbody>
         {% for match in comparison.numeric_matches %}
           <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
             <td><code>{{ match.claim_raw }}</code></td>
             <td>{{ match.claim_source }}</td>
+            <td><span class="numeric-pair"><span class="paper-val">{{ match.claim_value }}</span></span></td>
+            <td>
+              {% if match.artifact_value is not none %}
+                <span class="numeric-pair"><span class="artifact-val">{{ match.artifact_value }}</span></span>
+              {% else %}
+                <span style="color:var(--muted)">—</span>
+              {% endif %}
+            </td>
             <td>{{ basename(match.artifact_path) if match.artifact_path else '—' }}</td>
             <td>{{ "%.2f"|format(match.score) }}</td>
             <td class="{{ 'matched' if match.matched else 'missing' }}">{{ 'matched' if match.matched else 'missing' }}</td>
@@ -616,6 +778,21 @@ HTML_TEMPLATE = """
       document.querySelectorAll('#' + tableId + ' tbody tr').forEach(row => {
         row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
       });
+    }
+    function toggleDetail(el) {
+      const row = el.closest('tr');
+      const detail = row.nextElementSibling;
+      if (detail && detail.classList.contains('detail-panel')) {
+        detail.style.display = detail.style.display === 'table-row' ? 'none' : 'table-row';
+      }
+    }
+    function filterFigures(status) {
+      document.querySelectorAll('.figure-entry').forEach(entry => {
+        entry.style.display = (status === 'all' || entry.dataset.figStatus === status) ? '' : 'none';
+      });
+      const section = document.getElementById('figures');
+      section.querySelectorAll('.filter-bar button').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
     }
     document.querySelectorAll('th').forEach(th => {
       th.addEventListener('click', () => {
@@ -672,10 +849,33 @@ def render_reports(
             return ""
         return Path(path).name
 
+    def embed_image(path: str | None) -> str:
+        if not path:
+            return ""
+        p = Path(path)
+        if not p.exists() or p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".gif", ".svg"}:
+            return ""
+        if p.stat().st_size > 5_000_000:
+            return ""
+        try:
+            return base64.b64encode(p.read_bytes()).decode("ascii")
+        except Exception:
+            return ""
+
+    def image_ext(path: str | None) -> str:
+        if not path:
+            return "png"
+        ext = Path(path).suffix.lower().lstrip(".")
+        return {"jpg": "jpeg"}.get(ext, ext)
+
+    paper_figure_images = _extract_pdf_figures(paper.source)
+
     environment = Environment(trim_blocks=True, lstrip_blocks=True, autoescape=True)
     environment.globals["pct"] = lambda value: f"{value * 100:.1f}%"
     environment.globals["log_content"] = log_content
     environment.globals["basename"] = basename
+    environment.globals["embed_image"] = embed_image
+    environment.globals["image_ext"] = image_ext
     context = {
         "paper": paper,
         "package": package,
@@ -687,6 +887,7 @@ def render_reports(
         "diagnostic_notes": diagnostic_notes,
         "suggestions": suggestions,
         "screening": screening,
+        "paper_figure_images": paper_figure_images,
     }
 
     md_env = Environment(trim_blocks=True, lstrip_blocks=True)
@@ -699,6 +900,42 @@ def render_reports(
     markdown_path.write_text(markdown)
     html_path.write_text(html)
     return markdown_path, html_path
+
+
+def _extract_pdf_figures(paper_source: str) -> dict[str, str]:
+    """Try to extract figure images from PDF pages. Returns {figure_number: base64_png}."""
+    p = Path(paper_source)
+    if not p.exists() or p.suffix.lower() != ".pdf":
+        return {}
+    try:
+        import pdfplumber
+    except ImportError:
+        return {}
+
+    figures: dict[str, str] = {}
+    try:
+        with pdfplumber.open(p) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                import re
+                fig_refs = re.findall(r"(?:Fig(?:ure|\.)\s*(\d+[a-z]?))", text, re.IGNORECASE)
+                if not fig_refs:
+                    continue
+                for fig_num in fig_refs:
+                    if fig_num in figures:
+                        continue
+                    try:
+                        img = page.to_image(resolution=150)
+                        import io
+                        buf = io.BytesIO()
+                        img.save(buf, format="PNG")
+                        figures[fig_num] = base64.b64encode(buf.getvalue()).decode("ascii")
+                    except Exception:
+                        continue
+                    break
+    except Exception:
+        pass
+    return figures
 
 
 def generate_suggestions(

@@ -176,6 +176,7 @@ def compare_tables(paper: PaperManifest, package: PackageManifest) -> list[Table
         matched = best_path is not None and (best_score >= 0.5 or best_overlap == total_values and total_values > 0)
         if matched and best_path:
             used_paths.add(best_path)
+        artifact_preview = _read_artifact_preview(best_path) if matched and best_path else None
         table_matches.append(
             TableMatch(
                 table_number=table.number,
@@ -185,6 +186,8 @@ def compare_tables(paper: PaperManifest, package: PackageManifest) -> list[Table
                 overlap_score=round(best_score, 4),
                 matched_values=best_overlap,
                 paper_values=total_values,
+                paper_body=table.body[:2000] if table.body else None,
+                artifact_preview=artifact_preview,
             )
         )
     return table_matches
@@ -227,6 +230,9 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
         )
         if matched and best_path:
             used_paths.add(best_path)
+        img_sim = None
+        if matched and best_path and best_path in hash_cache:
+            img_sim = 1.0
         figure_matches.append(
             FigureMatch(
                 figure_number=figure.number,
@@ -234,6 +240,7 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
                 matched=matched,
                 artifact_path=best_path if matched else None,
                 score=round(best_score, 4),
+                image_similarity=img_sim,
             )
         )
     return figure_matches
@@ -371,6 +378,22 @@ def comparable_table_artifacts(package: PackageManifest):
 
 def comparable_figure_artifacts(package: PackageManifest):
     return [artifact for artifact in package.figure_artifacts if is_output_artifact(artifact.path)]
+
+
+def _read_artifact_preview(path: str | None, max_lines: int = 30) -> str | None:
+    if not path:
+        return None
+    p = Path(path)
+    if not p.exists() or p.stat().st_size > 500_000:
+        return None
+    try:
+        text = p.read_text(errors="replace")
+        lines = text.splitlines()[:max_lines]
+        if len(text.splitlines()) > max_lines:
+            lines.append(f"... ({len(text.splitlines()) - max_lines} more lines)")
+        return "\n".join(lines)
+    except Exception:
+        return None
 
 
 def is_output_artifact(path: str) -> bool:
