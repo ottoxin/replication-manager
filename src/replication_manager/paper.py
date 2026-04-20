@@ -191,12 +191,17 @@ def extract_figures(lines: list[str]) -> list[FigureClaim]:
 
 def extract_numeric_claims(lines: list[str], tables: list[PaperTable]) -> list[NumericClaim]:
     claims: list[NumericClaim] = []
-    content_lines = lines[:find_references_start(lines)]
+    bib_ranges = find_bibliography_ranges(lines)
+    skip_lines: set[int] = set()
+    for start, end in bib_ranges:
+        skip_lines.update(range(start, end))
 
     for table in tables:
         claims.extend(table.numeric_claims)
 
-    for index, line in enumerate(content_lines):
+    for index, line in enumerate(lines):
+        if index in skip_lines:
+            continue
         if should_skip_line(line):
             continue
         lowered = line.lower()
@@ -268,7 +273,74 @@ def find_references_start(lines: list[str]) -> int:
         stripped = line.strip().lower()
         if stripped == "references" or stripped.startswith("references "):
             return index
+        if stripped in ("bibliography", "works cited", "literature cited"):
+            return index
+
+    numbered_ref = re.compile(r"^\d{1,3}\.\s+[A-Z][a-z]+,?\s+[A-Z]")
+    for index in range(len(lines) - 1):
+        stripped = lines[index].strip()
+        next_stripped = lines[min(index + 1, len(lines) - 1)].strip()
+        if numbered_ref.match(stripped) and numbered_ref.match(next_stripped):
+            return index
+
     return len(lines)
+
+
+def find_bibliography_ranges(lines: list[str]) -> list[tuple[int, int]]:
+    """Find line ranges that are bibliography / code-availability / reporting sections."""
+    ranges = []
+    numbered_ref = re.compile(r"^\d{1,3}\.\s+[A-Z][a-z]+,?\s+[A-Z]")
+    ref_headings = {"references", "bibliography", "works cited", "literature cited"}
+    skip_sections = {"code availability", "reporting summary", "data availability"}
+
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip().lower()
+        if stripped in ref_headings or stripped.startswith("references "):
+            start = i
+            i += 1
+            while i < len(lines):
+                s = lines[i].strip().lower()
+                if s in ("methods", "acknowledgements", "supplementary information") or s.startswith("extended data") or s.startswith("====="):
+                    break
+                i += 1
+            ranges.append((start, i))
+            continue
+
+        if stripped in skip_sections:
+            start = i
+            i += 1
+            while i < len(lines) and lines[i].strip() and not lines[i].strip().startswith("====="):
+                if lines[i].strip().lower() in ("methods", "extended data", "acknowledgements"):
+                    break
+                i += 1
+            ranges.append((start, i))
+            continue
+
+        if stripped == "online content":
+            bib_start = i
+            i += 1
+            while i < len(lines):
+                s = lines[i].strip().lower()
+                if s == "methods" or s.startswith("extended data") or s.startswith("====="):
+                    break
+                i += 1
+            ranges.append((bib_start, i))
+            continue
+
+        if numbered_ref.match(lines[i].strip()):
+            if i + 1 < len(lines) and numbered_ref.match(lines[i + 1].strip()):
+                start = i
+                while i < len(lines):
+                    s = lines[i].strip()
+                    if s.lower() == "methods" or s.startswith("====="):
+                        break
+                    i += 1
+                ranges.append((start, i))
+                continue
+
+        i += 1
+    return ranges
 
 
 def date_like_raw_tokens(line: str) -> set[str]:

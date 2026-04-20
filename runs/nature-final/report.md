@@ -4,16 +4,16 @@
 
 - Paper: Qianyue Hao1, Fengli Xu1 ✉, Yong Li1,2 ✉ & James Evans3,4 ✉
 - Verdict: **largely reproducible**
-- Numeric match rate: 70.0% (131/187 substantive)
+- Numeric match rate: 74.9% (134/179 substantive)
 - Table match rate: 0.0% (0/0)
 - Figure match rate: 0.0% (0/14)
 
 ### AI Analysis
 
-Of 234 numeric claims extracted from the paper, 47 were classified as coincidental (citation numbers, version numbers, equation references, etc.). Among the 187 substantive claims, 131 (70%) matched values in the source data. 56 substantive claims could not be matched — these may require running the full computational pipeline. Script execution: 0 succeeded, 13 failed, 0 skipped. Failed scripts typically require upstream intermediate data from heavy compute. Of 14 figures, 4 have source data for verification, 10 cannot be reproduced without additional compute. Adjusted verdict: largely reproducible.
+Of 205 numeric claims extracted from the paper, 26 were classified as coincidental (citation numbers, version numbers, equation references, etc.). Among the 179 substantive claims, 134 (75%) matched values in the source data. 45 substantive claims could not be matched — these may require running the full computational pipeline. Script execution: 0 succeeded, 13 failed, 0 skipped. Failed scripts typically require upstream intermediate data from heavy compute. Of 14 figures, 4 have source data for verification, 10 cannot be reproduced without additional compute. Adjusted verdict: largely reproducible.
 
-- Substantive matches: 131
-- Coincidental filtered: 47
+- Substantive matches: 134
+- Coincidental filtered: 26
 - Figures with source data: 4/14
 
 ## Inputs
@@ -34,30 +34,30 @@ Of 234 numeric claims extracted from the paper, 47 were classified as coincident
 
 | Step | Language | Status | Return code | Duration (s) |
 | --- | --- | --- | --- | ---: |
-| `pip-install-requirements-txt` | python | success | 0 | 166.430 |
+| `pip-install-requirements-txt` | python | success | 0 | 168.266 |
 
 ## Agent Workflow
 
 | Agent | Role | Phase | Status | Summary |
 | --- | --- | --- | --- | --- |
-| Coordinator | Plans the next skill and builds the shared replication state. | Phase A | success | Materialized paper input `paper.pdf` and package input `nature-ai-impacts`; Extracted 0 tables, 14 figures, and 234 numeric claims from the paper; Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts; plus 1 more skill(s). |
+| Coordinator | Plans the next skill and builds the shared replication state. | Phase A | success | Materialized paper input `paper.pdf` and package input `nature-ai-impacts`; Extracted 0 tables, 14 figures, and 205 numeric claims from the paper; Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts; plus 1 more skill(s). |
 | Executor | Prepares the runtime, runs scripts, and diagnoses execution blockers. | Phase A-Phase B | failed | Prepared a sandboxed workspace with 1 bootstrap step(s) and 44 runnable script(s); Ran 13 script(s): 0 succeeded, 0 blocked, 0 skipped, 13 failed; Generated 0 diagnostic note(s) about environment gaps, skipped stages, and blocked dependencies. |
-| Reporter | Compares outputs to the paper and compiles the submission-facing report. | Phase B-Phase C | success | Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%; Rendered Markdown and HTML reports from the workflow state. |
-| Analyst | Filters coincidental matches and assesses what can and cannot be replicated. | Phase B | success | Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`. |
+| Reporter | Compares outputs to the paper and compiles the submission-facing report. | Phase B-Phase C | success | Computed verdict `partially reproducible` with numeric/table/figure rates 78.0%/0.0%/0.0%; Rendered Markdown and HTML reports from the workflow state. |
+| Analyst | Filters coincidental matches and assesses what can and cannot be replicated. | Phase B | success | Filtered 26 coincidental claims, 134/179 substantive matched (75%). Adjusted verdict: `largely reproducible`. |
 
 ## Skill Workflow
 
 | Skill | Agent | Phase | Status | Summary |
 | --- | --- | --- | --- | --- |
 | intake_sources | Coordinator | Phase A | success | Materialized paper input `paper.pdf` and package input `nature-ai-impacts`. |
-| profile_paper | Coordinator | Phase A | success | Extracted 0 tables, 14 figures, and 234 numeric claims from the paper. |
+| profile_paper | Coordinator | Phase A | success | Extracted 0 tables, 14 figures, and 205 numeric claims from the paper. |
 | inspect_package | Coordinator | Phase A | success | Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts. |
 | prepare_workspace | Executor | Phase A | success | Prepared a sandboxed workspace with 1 bootstrap step(s) and 44 runnable script(s). |
 | screen_package | Coordinator | Phase A | success | Screened 44 scripts: 13 runnable, 6 GPU, 25 heavy-compute. Compute estimate: Large-scale (41.3 million). |
 | execute_package | Executor | Phase A | failed | Ran 13 script(s): 0 succeeded, 0 blocked, 0 skipped, 13 failed. |
 | diagnose_execution | Executor | Phase B | success | Generated 0 diagnostic note(s) about environment gaps, skipped stages, and blocked dependencies. |
-| match_outputs | Reporter | Phase B | success | Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%. |
-| analyze_results | Analyst | Phase B | success | Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`. |
+| match_outputs | Reporter | Phase B | success | Computed verdict `partially reproducible` with numeric/table/figure rates 78.0%/0.0%/0.0%. |
+| analyze_results | Analyst | Phase B | success | Filtered 26 coincidental claims, 134/179 substantive matched (75%). Adjusted verdict: `largely reproducible`. |
 | write_report | Reporter | Phase C | success | Rendered Markdown and HTML reports from the workflow state. |
 
 ## Screening
@@ -151,19 +151,19 @@ Of 234 numeric claims extracted from the paper, 47 were classified as coincident
 
 | Script | Language | Status | Return code | Duration (s) |
 | --- | --- | --- | --- | ---: |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_CitationByYear.py` | python | failed | 1 | 1.308 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_PaperByYear.py` | python | failed | 1 | 0.081 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Space_SpreadByCitation.py` | python | failed | 1 | 1.312 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreCitationByYear.py` | python | failed | 1 | 0.082 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreReference.py` | python | failed | 1 | 0.082 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Disruption.py` | python | failed | 1 | 0.082 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Distance_Engage_NoEngage_Pairwise.py` | python | failed | 1 | 3.855 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Following_Engage.py` | python | failed | 1 | 0.086 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_TeamLast.py` | python | failed | 1 | 0.080 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/ClassifyWork_Union.py` | python | failed | 1 | 0.340 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career.py` | python | failed | 1 | 3.798 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career_Date.py` | python | failed | 1 | 0.542 |
-| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Field.py` | python | failed | 1 | 0.497 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_CitationByYear.py` | python | failed | 1 | 0.867 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_PaperByYear.py` | python | failed | 1 | 0.083 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Space_SpreadByCitation.py` | python | failed | 1 | 0.611 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreCitationByYear.py` | python | failed | 1 | 0.085 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreReference.py` | python | failed | 1 | 0.081 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Disruption.py` | python | failed | 1 | 0.081 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Distance_Engage_NoEngage_Pairwise.py` | python | failed | 1 | 1.812 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Following_Engage.py` | python | failed | 1 | 0.084 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_TeamLast.py` | python | failed | 1 | 0.081 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/ClassifyWork_Union.py` | python | failed | 1 | 0.284 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career.py` | python | failed | 1 | 1.401 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career_Date.py` | python | failed | 1 | 0.537 |
+| `/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Field.py` | python | failed | 1 | 0.500 |
 
 ## Table Comparison
 
@@ -201,7 +201,7 @@ Of 234 numeric claims extracted from the paper, 47 were classified as coincident
 | `13.82%` | Line 1025 | paper and find that from 13.82% (materials science, σ = 0.02) to 20.28% | 13.82 | 13.82209346504559 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS24__DL_era_citation.csv | 1.00 | matched |
 | `20.28%` | Line 1025 | paper and find that from 13.82% (materials science, σ = 0.02) to 20.28% | 20.28 | 20.28015877581545 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS24__DL_era_citation.csv | 1.00 | matched |
 | `1.58%` | Line 1031 | illustrates that only 1.58% of papers across all disciplines intentionally | 1.58 | 1.579846821104782 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS31__a.csv | 1.00 | matched |
-| `12` | Line 1032 | list the authors in alphabetical order (Supplementary Table 12) and | 12.0 | 12.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig7__Medicine_establish.csv | 1.00 | matched |
+| `12` | Line 1032 | list the authors in alphabetical order (Supplementary Table 12) and | 12.0 | 12.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig5.csv | 1.00 | matched |
 | `2,282,029` | Line 1063 | we obtain 2,282,029 scientists in the six disciplines with complete role | 2282029.0 | — | — | 0.00 | missing |
 | `64,` | Line 1067 | in previous studies63,64, we further validate our detection results by | 64.0 | 64.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
 | `< 0.01` | Line 1073 | conceptual work significantly rises (P < 0.01 and df = 1 in a Cochran– | 0.01 | 0.0099995507863878 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS24__GAI_era_disruption.csv | 1.00 | matched |
@@ -211,14 +211,7 @@ Of 234 numeric claims extracted from the paper, 47 were classified as coincident
 | `36,` | Line 115 | eras, we fine-tune BERT32,33, an established language model34– 36, on | 36.0 | 36.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
 | `1,000` | Line 1165 | given size. For each domain, we randomly sample 1,000 papers from | 1000.0 | 1000.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS35__a.csv | 1.00 | matched |
 | `1,000` | Line 1168 | extent values across these 1,000 random samples, we ensure that the | 1000.0 | 1000.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS37__b.csv | 1.00 | matched |
-| `11` | Line 1203 | (− 1) ×1 00 (%). (11)nn(− 1) | 11.0 | 11.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig7__Medicine_quit.csv | 1.00 | matched |
-| `3.11` | Line 1227 | This study used Python 3.11.0 with software packages to conduct data | 3.11 | 3.109908738811028 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS11.csv | 1.00 | matched |
-| `1.15` | Line 1229 | SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE | 1.15 | 1.15035325756994 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig2__a.csv | 1.00 | matched |
-| `1.6` | Line 1229 | SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE | 1.6 | 1.600128010240819 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS25__ML_era.csv | 1.00 | matched |
-| `3.10` | Line 1229 | SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE | 3.1 | 3.1 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/Supplementary_FigS24__GAI_era_citation.csv | 1.00 | matched |
-| `16` | Line 1244 | In CVPR'16: Proc. 2016 IEEE conference on computer vision and pattern recognitio | 16.0 | 16.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig7__Medicine_establish.csv | 1.00 | matched |
-| `785` | Line 1251 | ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–7 | 785.0 | — | — | 0.00 | missing |
-| `794` | Line 1251 | ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–7 | 794.0 | — | — | 0.00 | missing |
+| `11` | Line 1203 | (− 1) ×1 00 (%). (11)nn(− 1) | 11.0 | 11.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig5.csv | 1.00 | matched |
 | `0.964` | Line 129 | tioned above, achieving an average Fleiss' κ of 0.964 (refs. 37,38). The | 0.964 | 0.9639999880906176 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig10__Total.csv | 1.00 | matched |
 | `37,38` | Line 129 | tioned above, achieving an average Fleiss' κ of 0.964 (refs. 37,38). The | 3738.0 | — | — | 0.00 | missing |
 | `0.875` | Line 13 | to identify AI-augmented research, with an F1-score of 0.875 in validation again | 0.875 | 0.8750000158549113 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig4__c.csv | 1.00 | matched |
@@ -379,28 +372,6 @@ Of 234 numeric claims extracted from the paper, 47 were classified as coincident
 | `590,325,130` | Line 722 | versus disengaged (purple) ( n = 590,325,130 sampled paper pairs). Results | 590325130.0 | — | — | 0.00 | missing |
 | `99%` | Line 725 | overlaps in knowledge space. For all panels, 99% CIs are shown as error bars or | 99.0 | 99.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig1__e.csv | 1.00 | matched |
 | `33` | Line 74 | and geology. We then leverage a fine-tuned BERT language model32,33 | 33.0 | 33.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `2281` | Line 778 | scientific research. Nat. Human Behav. 8, 2281–2292 (2024). | 2281.0 | — | — | 0.00 | missing |
-| `2292` | Line 778 | scientific research. Nat. Human Behav. 8, 2281–2292 (2024). | 2292.0 | — | — | 0.00 | missing |
-| `12` | Line 785 | challenges in K-12 settings. AI Ethics 2, 431–440 (2022). | 12.0 | 12.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig5.csv | 1.00 | matched |
-| `431` | Line 785 | challenges in K-12 settings. AI Ethics 2, 431–440 (2022). | 431.0 | 431.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig1__d.csv | 1.00 | matched |
-| `440` | Line 785 | challenges in K-12 settings. AI Ethics 2, 431–440 (2022). | 440.0 | 440.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig1__d.csv | 1.00 | matched |
-| `120` | Line 787 | (or generative AI) in healthcare. npj Digital Med. 6, 120 (2023). | 120.0 | 120.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `4.0` | Line 792 | intelligence in industry 4.0: a survey on what, how, and where. IEEE Trans. Indu | 4.0 | 4.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig5.csv | 1.00 | matched |
-| `11,` | Line 816 | writing in biomedical publications through excess vocabulary. Sci. Adv. 11, eadt | 11.0 | 11.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig5.csv | 1.00 | matched |
-| `57` | Line 826 | understanding. In Proc. 57th Annual Meeting of the Association for Computational | 57.0 | 57.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `38` | Line 829 | Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020 | 38.0 | 38.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `45` | Line 829 | Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020 | 45.0 | 45.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig1__d.csv | 1.00 | matched |
-| `3613` | Line 831 | In Proc. 57th Annual Meeting of the Association for Computational Linguistics 36 | 3613.0 | — | — | 0.00 | missing |
-| `3618` | Line 831 | In Proc. 57th Annual Meeting of the Association for Computational Linguistics 36 | 3618.0 | — | — | 0.00 | missing |
-| `57` | Line 831 | In Proc. 57th Annual Meeting of the Association for Computational Linguistics 36 | 57.0 | 57.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_Fig1__d.csv | 1.00 | matched |
-| `58` | Line 834 | representation learning using citation-informed transformers. In Proc. 58th Annu | 58.0 | 58.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `2270` | Line 835 | Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020). | 2270.0 | — | — | 0.00 | missing |
-| `2282` | Line 835 | Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020). | 2282.0 | — | — | 0.00 | missing |
-| `61` | Line 837 | benchmark for scientific document representations. In Proc. 61st Annual Meeting  | 61.0 | 61.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |
-| `5548` | Line 838 | Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023). | 5548.0 | — | — | 0.00 | missing |
-| `5566` | Line 838 | Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023). | 5566.0 | — | — | 0.00 | missing |
-| `11,` | Line 859 | science. Royal Soc. Open Sci. 11, 231130 (2024). | 11.0 | 11.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig7__Medicine_establish.csv | 1.00 | matched |
-| `231130` | Line 859 | science. Royal Soc. Open Sci. 11, 231130 (2024). | 231130.0 | — | — | 0.00 | missing |
 | `265.7` | Line 881 | OpenAlex contains 265.7 million research papers, along with related | 265.7 | — | — | 0.00 | missing |
 | `66,117,158` | Line 883 | sive quantity of papers in the OpenAlex dataset, we select 66,117,158 | 66117158.0 | — | — | 0.00 | missing |
 | `53,` | Line 892 | scientific disciplines in MAG52,53, that is, art, biology, business, chem- | 53.0 | 53.0 | /gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/results/SourceData_ExtFig9.csv | 1.00 | matched |

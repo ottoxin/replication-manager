@@ -15,7 +15,7 @@
     "agent": "Coordinator",
     "phase": "Phase A",
     "status": "success",
-    "summary": "Extracted 0 tables, 14 figures, and 234 numeric claims from the paper.",
+    "summary": "Extracted 0 tables, 14 figures, and 205 numeric claims from the paper.",
     "artifact_paths": [
       "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/inputs/paper.pdf"
     ]
@@ -84,7 +84,7 @@
     "agent": "Reporter",
     "phase": "Phase B",
     "status": "success",
-    "summary": "Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%.",
+    "summary": "Computed verdict `partially reproducible` with numeric/table/figure rates 78.0%/0.0%/0.0%.",
     "artifact_paths": []
   },
   {
@@ -92,7 +92,7 @@
     "agent": "Analyst",
     "phase": "Phase B",
     "status": "success",
-    "summary": "Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`.",
+    "summary": "Filtered 26 coincidental claims, 134/179 substantive matched (75%). Adjusted verdict: `largely reproducible`.",
     "artifact_paths": []
   },
   {

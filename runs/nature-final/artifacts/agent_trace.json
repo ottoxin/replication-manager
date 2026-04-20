@@ -4,7 +4,7 @@
     "role": "Plans the next skill and builds the shared replication state.",
     "phase": "Phase A",
     "status": "success",
-    "summary": "Materialized paper input `paper.pdf` and package input `nature-ai-impacts`; Extracted 0 tables, 14 figures, and 234 numeric claims from the paper; Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts; plus 1 more skill(s).",
+    "summary": "Materialized paper input `paper.pdf` and package input `nature-ai-impacts`; Extracted 0 tables, 14 figures, and 205 numeric claims from the paper; Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts; plus 1 more skill(s).",
     "artifact_paths": [
       "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/inputs/paper.pdf",
       "/gpfs/projects/p33196/kym9881/replication-manager/examples/nature-ai-impacts",
@@ -40,7 +40,7 @@
     "role": "Compares outputs to the paper and compiles the submission-facing report.",
     "phase": "Phase B-Phase C",
     "status": "success",
-    "summary": "Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%; Rendered Markdown and HTML reports from the workflow state.",
+    "summary": "Computed verdict `partially reproducible` with numeric/table/figure rates 78.0%/0.0%/0.0%; Rendered Markdown and HTML reports from the workflow state.",
     "artifact_paths": [
       "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.md",
       "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.html"
@@ -51,7 +51,7 @@
     "role": "Filters coincidental matches and assesses what can and cannot be replicated.",
     "phase": "Phase B",
     "status": "success",
-    "summary": "Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`.",
+    "summary": "Filtered 26 coincidental claims, 134/179 substantive matched (75%). Adjusted verdict: `largely reproducible`.",
     "artifact_paths": []
   }
 ]

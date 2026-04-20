@@ -274,8 +274,8 @@
       <div class="metrics">
         <div class="metric">
           <span>Numeric match rate (adjusted)</span>
-          <strong>70.0%</strong>
-          <small>131/187 substantive</small>
+          <strong>74.9%</strong>
+          <small>134/179 substantive</small>
         </div>
         <div class="metric">
           <span>Table match rate</span>
@@ -290,15 +290,15 @@
       </div>
       <div style="margin-top: 16px; padding: 12px 16px; background: var(--surface); border-radius: 8px; border-left: 4px solid var(--accent);">
         <strong>AI Analysis:</strong>
-        <p style="margin: 8px 0 0 0; font-size: 0.9em; line-height: 1.5;">Of 234 numeric claims extracted from the paper, 47 were classified as coincidental (citation numbers, version numbers, equation references, etc.). Among the 187 substantive claims, 131 (70%) matched values in the source data. 56 substantive claims could not be matched — these may require running the full computational pipeline. Script execution: 0 succeeded, 13 failed, 0 skipped. Failed scripts typically require upstream intermediate data from heavy compute. Of 14 figures, 4 have source data for verification, 10 cannot be reproduced without additional compute. Adjusted verdict: largely reproducible.</p>
+        <p style="margin: 8px 0 0 0; font-size: 0.9em; line-height: 1.5;">Of 205 numeric claims extracted from the paper, 26 were classified as coincidental (citation numbers, version numbers, equation references, etc.). Among the 179 substantive claims, 134 (75%) matched values in the source data. 45 substantive claims could not be matched — these may require running the full computational pipeline. Script execution: 0 succeeded, 13 failed, 0 skipped. Failed scripts typically require upstream intermediate data from heavy compute. Of 14 figures, 4 have source data for verification, 10 cannot be reproduced without additional compute. Adjusted verdict: largely reproducible.</p>
         <div class="metrics" style="margin-top: 12px;">
           <div class="metric">
             <span>Substantive matches</span>
-            <strong>131</strong>
+            <strong>134</strong>
           </div>
           <div class="metric">
             <span>Coincidental filtered</span>
-            <strong>47</strong>
+            <strong>26</strong>
           </div>
           <div class="metric">
             <span>Figures with source data</span>
@@ -718,7 +718,7 @@
           <tr>
             <td>profile_paper</td><td>Coordinator</td><td>Phase A</td>
             <td class="matched">success</td>
-            <td>Extracted 0 tables, 14 figures, and 234 numeric claims from the paper.</td>
+            <td>Extracted 0 tables, 14 figures, and 205 numeric claims from the paper.</td>
           </tr>
           <tr>
             <td>inspect_package</td><td>Coordinator</td><td>Phase A</td>
@@ -748,12 +748,12 @@
           <tr>
             <td>match_outputs</td><td>Reporter</td><td>Phase B</td>
             <td class="matched">success</td>
-            <td>Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%.</td>
+            <td>Computed verdict `partially reproducible` with numeric/table/figure rates 78.0%/0.0%/0.0%.</td>
           </tr>
           <tr>
             <td>analyze_results</td><td>Analyst</td><td>Phase B</td>
             <td class="matched">success</td>
-            <td>Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`.</td>
+            <td>Filtered 26 coincidental claims, 134/179 substantive matched (75%). Adjusted verdict: `largely reproducible`.</td>
           </tr>
           <tr>
             <td>write_report</td><td>Reporter</td><td>Phase C</td>
@@ -783,7 +783,7 @@
             <td>python</td>
             <td class="matched">success</td>
             <td>0</td>
-            <td>166.4s</td>
+            <td>168.3s</td>
             <td>
                 <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
                 <div class="log-preview">(empty)</div>
@@ -811,7 +811,7 @@
             <td>python</td>
             <td class="missing">failed</td>
             <td>1</td>
-            <td>1.3s</td>
+            <td>0.9s</td>
             <td>
                 <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
                 <div class="log-preview">Traceback (most recent call last):
@@ -845,7 +845,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>python</td>
             <td class="missing">failed</td>
             <td>1</td>
-            <td>1.3s</td>
+            <td>0.6s</td>
             <td>
                 <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
                 <div class="log-preview">Traceback (most recent call last):
@@ -913,7 +913,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>python</td>
             <td class="missing">failed</td>
             <td>1</td>
-            <td>3.9s</td>
+            <td>1.8s</td>
             <td>
                 <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
                 <div class="log-preview">Traceback (most recent call last):
@@ -981,7 +981,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>python</td>
             <td class="missing">failed</td>
             <td>1</td>
-            <td>3.8s</td>
+            <td>1.4s</td>
             <td>
                 <span class="log-toggle" onclick="toggleLog(this)">stderr</span>
                 <div class="log-preview">Traceback (most recent call last):
@@ -1438,7 +1438,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>
                 <span class="numeric-pair"><span class="artifact-val">12.0</span></span>
             </td>
-            <td>SourceData_ExtFig7__Medicine_establish.csv</td>
+            <td>SourceData_ExtFig5.csv</td>
             <td>1.00</td>
             <td class="matched">matched</td>
           </tr>
@@ -1588,114 +1588,9 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>
                 <span class="numeric-pair"><span class="artifact-val">11.0</span></span>
             </td>
-            <td>SourceData_ExtFig7__Medicine_quit.csv</td>
+            <td>SourceData_ExtFig5.csv</td>
             <td>1.00</td>
             <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>3.11</code></td>
-            <td>Line 1227</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="This study used Python 3.11.0 with software packages to conduct data">This study used Python 3.11.0 with software packages to conduct data</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">3.11</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">3.109908738811028</span></span>
-            </td>
-            <td>Supplementary_FigS11.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>1.15</code></td>
-            <td>Line 1229</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE">SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">1.15</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">1.15035325756994</span></span>
-            </td>
-            <td>SourceData_Fig2__a.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>1.6</code></td>
-            <td>Line 1229</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE">SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">1.6</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">1.600128010240819</span></span>
-            </td>
-            <td>Supplementary_FigS25__ML_era.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>3.10</code></td>
-            <td>Line 1229</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE">SciPy (v.1.15.2), scikit-learn (v.1.6.1) and matplotlib (v.3.10.1). The t-SNE</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">3.1</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">3.1</span></span>
-            </td>
-            <td>Supplementary_FigS24__GAI_era_citation.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>16</code></td>
-            <td>Line 1244</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="In CVPR&#39;16: Proc. 2016 IEEE conference on computer vision and pattern recognition">In CVPR&#39;16: Proc. 2016 IEEE conference on computer vision and pattern recognition</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">16.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">16.0</span></span>
-            </td>
-            <td>SourceData_ExtFig7__Medicine_establish.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>785</code></td>
-            <td>Line 1251</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–794">ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–794</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">785.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>794</code></td>
-            <td>Line 1251</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–794">ACM SIGKDD International Conference on Knowledge Discovery and Data Mining 785–794</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">794.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
           </tr>
           <tr data-matched="matched">
             <td><code>0.964</code></td>
@@ -1792,7 +1687,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1422</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="a higher academic impact than non-AI papers. 99% CIs are shown as error bars">a higher academic impact than non-AI papers. 99% CIs are shown as error bars</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -1852,7 +1747,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1429</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="publish 3.02 times more papers compared with those not using AI. 99% CIs">publish 3.02 times more papers compared with those not using AI. 99% CIs</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -1867,7 +1762,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1453</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="while it remains stable and high after that transition. 99% CIs are shown as error">while it remains stable and high after that transition. 99% CIs are shown as error</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -1972,7 +1867,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1475</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="age than those without AI. For all panels, 99% CIs are shown as error bars or">age than those without AI. For all panels, 99% CIs are shown as error bars or</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -2062,7 +1957,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1513</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="of knowledge extent can be observed in more than 70% of over two hundred">of knowledge extent can be observed in more than 70% of over two hundred</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">70.0</span></span></td>
             <td>
@@ -2092,7 +1987,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1514</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="sub-fields ( n = 1,000 samples in each subfield). For all subfields, 99% CIs are">sub-fields ( n = 1,000 samples in each subfield). For all subfields, 99% CIs are</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -2107,7 +2002,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1523</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="with approximately 20% of top papers receiving 80% of citations and 50%">with approximately 20% of top papers receiving 80% of citations and 50%</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">20.0</span></span></td>
             <td>
@@ -2122,7 +2017,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1523</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="with approximately 20% of top papers receiving 80% of citations and 50%">with approximately 20% of top papers receiving 80% of citations and 50%</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">50.0</span></span></td>
             <td>
@@ -2137,7 +2032,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1523</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="with approximately 20% of top papers receiving 80% of citations and 50%">with approximately 20% of top papers receiving 80% of citations and 50%</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">80.0</span></span></td>
             <td>
@@ -2152,7 +2047,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1524</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="receiving 95%. This unequal distribution leads to a higher Gini coefficient in">receiving 95%. This unequal distribution leads to a higher Gini coefficient in</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">95.0</span></span></td>
             <td>
@@ -2197,7 +2092,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 1527</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="consistent across all fields examined. For all panels, 99% CIs are shown as error">consistent across all fields examined. For all panels, 99% CIs are shown as error</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Number from reference/methods section, likely not a finding">coincidental</span>
+                <span style="font-size:0.8em;">substantive</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">99.0</span></span></td>
             <td>
@@ -3937,7 +3832,7 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>Line 65</td>
             <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="roborated using the Web of Science30,31. Notably, we do not focus on">roborated using the Web of Science30,31. Notably, we do not focus on</td>
             <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
+                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
             </td>
             <td><span class="numeric-pair"><span class="paper-val">31.0</span></span></td>
             <td>
@@ -4096,336 +3991,6 @@ FileNotFoundError: [Errno 2] No such file or directory: &#39;../result_alltime/D
             <td>SourceData_ExtFig9.csv</td>
             <td>1.00</td>
             <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>2281</code></td>
-            <td>Line 778</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="scientific research. Nat. Human Behav. 8, 2281–2292 (2024).">scientific research. Nat. Human Behav. 8, 2281–2292 (2024).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">2281.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>2292</code></td>
-            <td>Line 778</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="scientific research. Nat. Human Behav. 8, 2281–2292 (2024).">scientific research. Nat. Human Behav. 8, 2281–2292 (2024).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">2292.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>12</code></td>
-            <td>Line 785</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="challenges in K-12 settings. AI Ethics 2, 431–440 (2022).">challenges in K-12 settings. AI Ethics 2, 431–440 (2022).</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">12.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">12.0</span></span>
-            </td>
-            <td>SourceData_ExtFig5.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>431</code></td>
-            <td>Line 785</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="challenges in K-12 settings. AI Ethics 2, 431–440 (2022).">challenges in K-12 settings. AI Ethics 2, 431–440 (2022).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">431.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">431.0</span></span>
-            </td>
-            <td>SourceData_Fig1__d.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>440</code></td>
-            <td>Line 785</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="challenges in K-12 settings. AI Ethics 2, 431–440 (2022).">challenges in K-12 settings. AI Ethics 2, 431–440 (2022).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">440.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">440.0</span></span>
-            </td>
-            <td>SourceData_Fig1__d.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>120</code></td>
-            <td>Line 787</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="(or generative AI) in healthcare. npj Digital Med. 6, 120 (2023).">(or generative AI) in healthcare. npj Digital Med. 6, 120 (2023).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">120.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">120.0</span></span>
-            </td>
-            <td>SourceData_ExtFig9.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>4.0</code></td>
-            <td>Line 792</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="intelligence in industry 4.0: a survey on what, how, and where. IEEE Trans. Indust. Inform.">intelligence in industry 4.0: a survey on what, how, and where. IEEE Trans. Indust. Inform.</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">4.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">4.0</span></span>
-            </td>
-            <td>SourceData_ExtFig5.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>11,</code></td>
-            <td>Line 816</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="writing in biomedical publications through excess vocabulary. Sci. Adv. 11, eadt3813 (2025).">writing in biomedical publications through excess vocabulary. Sci. Adv. 11, eadt3813 (2025).</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Software version number">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">11.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">11.0</span></span>
-            </td>
-            <td>SourceData_ExtFig5.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>57</code></td>
-            <td>Line 826</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="understanding. In Proc. 57th Annual Meeting of the Association for Computational">understanding. In Proc. 57th Annual Meeting of the Association for Computational</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">57.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">57.0</span></span>
-            </td>
-            <td>SourceData_ExtFig9.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>38</code></td>
-            <td>Line 829</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020).">Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020).</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">38.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">38.0</span></span>
-            </td>
-            <td>SourceData_ExtFig9.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>45</code></td>
-            <td>Line 829</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020).">Annual Meeting of the Association for Computational Linguistics 38–45 (ACL, 2020).</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">45.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">45.0</span></span>
-            </td>
-            <td>SourceData_Fig1__d.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>3613</code></td>
-            <td>Line 831</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618">In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">3613.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>3618</code></td>
-            <td>Line 831</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618">In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">3618.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>57</code></td>
-            <td>Line 831</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618">In Proc. 57th Annual Meeting of the Association for Computational Linguistics 3613–3618</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">57.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">57.0</span></span>
-            </td>
-            <td>SourceData_Fig1__d.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>58</code></td>
-            <td>Line 834</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="representation learning using citation-informed transformers. In Proc. 58th Annual">representation learning using citation-informed transformers. In Proc. 58th Annual</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">58.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">58.0</span></span>
-            </td>
-            <td>SourceData_ExtFig9.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>2270</code></td>
-            <td>Line 835</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020).">Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">2270.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>2282</code></td>
-            <td>Line 835</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020).">Meeting of the Association for Computational Linguistics 2270–2282 (ACL, 2020).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">2282.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>61</code></td>
-            <td>Line 837</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="benchmark for scientific document representations. In Proc. 61st Annual Meeting of the">benchmark for scientific document representations. In Proc. 61st Annual Meeting of the</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely coincidental match">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">61.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">61.0</span></span>
-            </td>
-            <td>SourceData_ExtFig9.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>5548</code></td>
-            <td>Line 838</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023).">Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">5548.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>5566</code></td>
-            <td>Line 838</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023).">Association for Computational Linguistics 5548–5566 (ACL, Canada, 2023).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">5566.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
-          </tr>
-          <tr data-matched="matched">
-            <td><code>11,</code></td>
-            <td>Line 859</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="science. Royal Soc. Open Sci. 11, 231130 (2024).">science. Royal Soc. Open Sci. 11, 231130 (2024).</td>
-            <td>
-                <span style="color:var(--muted);font-size:0.8em;" title="Likely a citation/reference number">coincidental</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">11.0</span></span></td>
-            <td>
-                <span class="numeric-pair"><span class="artifact-val">11.0</span></span>
-            </td>
-            <td>SourceData_ExtFig7__Medicine_establish.csv</td>
-            <td>1.00</td>
-            <td class="matched">matched</td>
-          </tr>
-          <tr data-matched="missing">
-            <td><code>231130</code></td>
-            <td>Line 859</td>
-            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="science. Royal Soc. Open Sci. 11, 231130 (2024).">science. Royal Soc. Open Sci. 11, 231130 (2024).</td>
-            <td>
-                <span style="font-size:0.8em;">substantive</span>
-            </td>
-            <td><span class="numeric-pair"><span class="paper-val">231130.0</span></span></td>
-            <td>
-                <span style="color:var(--muted)">—</span>
-            </td>
-            <td>—</td>
-            <td>0.00</td>
-            <td class="missing">missing</td>
           </tr>
           <tr data-matched="missing">
             <td><code>265.7</code></td>

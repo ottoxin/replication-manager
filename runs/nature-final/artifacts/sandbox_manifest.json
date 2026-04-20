@@ -21,7 +21,7 @@
       ],
       "return_code": 0,
       "status": "success",
-      "duration_seconds": 166.43,
+      "duration_seconds": 168.266,
       "stdout_path": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/logs/pip-install-requirements-txt.stdout.log",
       "stderr_path": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/logs/pip-install-requirements-txt.stderr.log",
       "message": null

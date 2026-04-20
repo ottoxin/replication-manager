@@ -27,12 +27,20 @@ REFERENCE_NUMBER_PATTERNS = [
 VERSION_CONTEXT_HINTS = {
     "python", "scipy", "scikit", "matplotlib", "numpy", "pandas",
     "tensorflow", "pytorch", "version", "v.", "(v.", "software",
+    "v.1", "v.2", "v.3", "packages",
 }
 
 CITATION_CONTEXT_HINTS = {
     "ref.", "refs.", "reference", "cited", "citation",
     "et al.", "proceedings", "conference", "journal",
-    "ieee", "acm", "springer", "nature", "science",
+    "ieee", "acm", "springer",
+}
+
+BIBLIOGRAPHY_CONTEXT_HINTS = {
+    "proc.", "in proc.", "comput.", "conf.", "workshop",
+    "arxiv", "preprint", "annual meeting",
+    "cvpr", "sigkdd", "neurips", "nips", "iclr", "icml",
+    "aaai", "ijcai", "emnlp", "naacl", "aclweb",
 }
 
 
@@ -48,37 +56,39 @@ def analyze_comparison(
 def _is_coincidental(match: NumericMatch) -> bool:
     ctx = (match.claim_context or "").lower()
     raw = match.claim_raw.strip()
+    val = match.claim_value
+    is_int = val == int(val)
+    int_val = int(val) if is_int else 0
 
-    if match.claim_value != int(match.claim_value):
+    if any(hint in ctx for hint in VERSION_CONTEXT_HINTS):
+        if val < 100:
+            return True
+
+    if any(hint in ctx for hint in BIBLIOGRAPHY_CONTEXT_HINTS):
+        return True
+
+    if any(hint in ctx for hint in CITATION_CONTEXT_HINTS):
+        clean_raw = raw.rstrip(",").strip()
+        if is_int and clean_raw.isdigit() and int_val < 200:
+            return True
+
+    if not is_int:
         return False
-
-    int_val = int(match.claim_value)
 
     for pattern in REFERENCE_NUMBER_PATTERNS:
         if pattern.search(raw) or pattern.search(ctx[:50]):
             return True
 
-    if any(hint in ctx for hint in CITATION_CONTEXT_HINTS):
-        clean_raw = raw.rstrip(",").strip()
-        if clean_raw.isdigit() and int_val < 200:
+    if re.search(r"refs?\.\s*\d", ctx) or re.search(r"\d+,\s*\d+\)", ctx[:60]):
+        if int_val < 200:
             return True
-
-    if any(hint in ctx for hint in VERSION_CONTEXT_HINTS):
-        if match.claim_value < 100:
-            return True
-
-    source = match.claim_source.lower()
-    if "line" in source:
-        try:
-            line_num = int(source.replace("line", "").strip())
-            if line_num > 1100 and int_val < 100:
-                return True
-        except ValueError:
-            pass
 
     if "page" in ctx[:30] or "equation" in ctx[:30] or "eq." in ctx[:30]:
         if int_val < 50:
             return True
+
+    if re.search(r"\d+[–-]\d+\s*\(\d{4}\)", ctx):
+        return True
 
     return False
 
