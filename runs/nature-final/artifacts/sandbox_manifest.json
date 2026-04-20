@@ -1,0 +1,34 @@
+{
+  "enabled": true,
+  "root": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox",
+  "project_root": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project",
+  "home_dir": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/home",
+  "temp_dir": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/tmp",
+  "python_executable": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/.venv/bin/python",
+  "r_library_dir": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/r_libs",
+  "r_profile_path": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/r_profile.R",
+  "install_records": [
+    {
+      "label": "pip-install-requirements-txt",
+      "language": "python",
+      "command": [
+        "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/.venv/bin/python",
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/requirements.txt"
+      ],
+      "return_code": 0,
+      "status": "success",
+      "duration_seconds": 166.43,
+      "stdout_path": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/logs/pip-install-requirements-txt.stdout.log",
+      "stderr_path": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/logs/pip-install-requirements-txt.stderr.log",
+      "message": null
+    }
+  ],
+  "notes": [
+    "Execution uses a copied project tree with a fresh HOME and temp directory.",
+    "Python user site-packages are disabled inside the sandbox."
+  ]
+}

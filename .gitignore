@@ -5,6 +5,21 @@ __pycache__/
 .venv/
 build/
 dist/
-runs/
 .coverage
 htmlcov/
+
+# Run outputs: exclude heavy dirs, keep final reports and key artifacts
+runs/*/sandbox/
+runs/*/workspace/
+runs/*/inputs/
+runs/*/logs/
+runs/*/artifacts/package_manifest.json
+runs/*/artifacts/raw_package_manifest.json
+runs/*/artifacts/execution_manifest.json
+
+# Example package: exclude large data dirs
+examples/*/source_data/
+examples/*/results/
+examples/*/openalex/
+examples/*/model/
+examples/*/paper.pdf

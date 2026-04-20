@@ -1,0 +1,109 @@
+[
+  {
+    "name": "intake_sources",
+    "agent": "Coordinator",
+    "phase": "Phase A",
+    "status": "success",
+    "summary": "Materialized paper input `paper.pdf` and package input `nature-ai-impacts`.",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/inputs/paper.pdf",
+      "/gpfs/projects/p33196/kym9881/replication-manager/examples/nature-ai-impacts"
+    ]
+  },
+  {
+    "name": "profile_paper",
+    "agent": "Coordinator",
+    "phase": "Phase A",
+    "status": "success",
+    "summary": "Extracted 0 tables, 14 figures, and 234 numeric claims from the paper.",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/inputs/paper.pdf"
+    ]
+  },
+  {
+    "name": "inspect_package",
+    "agent": "Coordinator",
+    "phase": "Phase A",
+    "status": "success",
+    "summary": "Inspected the package and found 44 scripts, 1 environment files, 420 table-like artifacts, and 2 figure artifacts.",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/workspace/nature-ai-impacts"
+    ]
+  },
+  {
+    "name": "prepare_workspace",
+    "agent": "Executor",
+    "phase": "Phase A",
+    "status": "success",
+    "summary": "Prepared a sandboxed workspace with 1 bootstrap step(s) and 44 runnable script(s).",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project"
+    ]
+  },
+  {
+    "name": "screen_package",
+    "agent": "Coordinator",
+    "phase": "Phase A",
+    "status": "success",
+    "summary": "Screened 44 scripts: 13 runnable, 6 GPU, 25 heavy-compute. Compute estimate: Large-scale (41.3 million).",
+    "artifact_paths": []
+  },
+  {
+    "name": "execute_package",
+    "agent": "Executor",
+    "phase": "Phase A",
+    "status": "failed",
+    "summary": "Ran 13 script(s): 0 succeeded, 0 blocked, 0 skipped, 13 failed.",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_CitationByYear.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Author_PaperByYear.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Space_SpreadByCitation.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreCitationByYear.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_CoreReference.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Disruption.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Distance_Engage_NoEngage_Pairwise.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_Following_Engage.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Calculate_Work_TeamLast.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/ClassifyWork_Union.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Career_Date.py",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox/project/code/Get_Author_Field.py"
+    ]
+  },
+  {
+    "name": "diagnose_execution",
+    "agent": "Executor",
+    "phase": "Phase B",
+    "status": "success",
+    "summary": "Generated 0 diagnostic note(s) about environment gaps, skipped stages, and blocked dependencies.",
+    "artifact_paths": []
+  },
+  {
+    "name": "match_outputs",
+    "agent": "Reporter",
+    "phase": "Phase B",
+    "status": "success",
+    "summary": "Computed verdict `partially reproducible` with numeric/table/figure rates 76.1%/0.0%/0.0%.",
+    "artifact_paths": []
+  },
+  {
+    "name": "analyze_results",
+    "agent": "Analyst",
+    "phase": "Phase B",
+    "status": "success",
+    "summary": "Filtered 47 coincidental claims, 131/187 substantive matched (70%). Adjusted verdict: `largely reproducible`.",
+    "artifact_paths": []
+  },
+  {
+    "name": "write_report",
+    "agent": "Reporter",
+    "phase": "Phase C",
+    "status": "success",
+    "summary": "Rendered Markdown and HTML reports from the workflow state.",
+    "artifact_paths": [
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.md",
+      "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.html"
+    ]
+  }
+]

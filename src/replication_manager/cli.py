@@ -47,17 +47,28 @@ def main() -> None:
             skip_heavy=args.skip_heavy,
         )
         summary = result.comparison.summary
-        print(f"Verdict: {summary.verdict}")
+        verdict = result.analysis.adjusted_verdict if result.analysis else summary.verdict
+        print(f"Verdict: {verdict}")
+        if result.analysis and result.analysis.adjusted_verdict != summary.verdict:
+            print(f"  (raw: {summary.verdict}, adjusted after filtering {result.analysis.coincidental_matches + result.analysis.coincidental_missing} coincidental claims)")
         print(
             f"Sandbox: {'enabled' if result.sandbox_manifest.enabled else 'disabled'} "
             f"with {len(result.sandbox_manifest.install_records)} bootstrap step(s)"
         )
-        print(
-            "Match rates: "
-            f"numbers={summary.numeric_match_rate:.1%}, "
-            f"tables={summary.table_match_rate:.1%}, "
-            f"figures={summary.figure_match_rate:.1%}"
-        )
+        if result.analysis:
+            print(
+                "Match rates: "
+                f"numbers={result.analysis.adjusted_numeric_rate:.1%} (substantive), "
+                f"tables={summary.table_match_rate:.1%}, "
+                f"figures={summary.figure_match_rate:.1%}"
+            )
+        else:
+            print(
+                "Match rates: "
+                f"numbers={summary.numeric_match_rate:.1%}, "
+                f"tables={summary.table_match_rate:.1%}, "
+                f"figures={summary.figure_match_rate:.1%}"
+            )
         print(f"Markdown report: {result.report_markdown}")
         print(f"HTML report: {result.report_html}")
 

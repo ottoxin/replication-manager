@@ -123,6 +123,7 @@ class NumericMatch:
     artifact_value: float | None = None
     score: float = 0.0
     reason: str | None = None
+    claim_context: str | None = None
 
 
 @dataclass
@@ -146,6 +147,21 @@ class FigureMatch:
     artifact_path: str | None = None
     score: float = 0.0
     image_similarity: float | None = None
+
+
+@dataclass
+class AnalysisResult:
+    substantive_matches: int
+    coincidental_matches: int
+    substantive_missing: int
+    coincidental_missing: int
+    reproducible_figures: int
+    infeasible_figures: int
+    adjusted_numeric_rate: float
+    adjusted_verdict: str
+    reasoning: str
+    claim_classifications: list[dict] = field(default_factory=list)
+    figure_assessments: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -184,6 +200,7 @@ class RunResult:
     report_html: Path
     summary_json: Path
     diagnostic_notes: list[str] = field(default_factory=list)
+    analysis: "AnalysisResult | None" = None
 
 
 @dataclass

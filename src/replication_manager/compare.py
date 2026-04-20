@@ -129,6 +129,7 @@ def compare_numeric_claims(claims: list[NumericClaim], package: PackageManifest)
             if score > best_score:
                 best = candidate
                 best_score = score
+        context = claim.context[:200] if claim.context else None
         if best is None:
             matches.append(
                 NumericMatch(
@@ -137,6 +138,7 @@ def compare_numeric_claims(claims: list[NumericClaim], package: PackageManifest)
                     claim_source=claim.source,
                     matched=False,
                     reason="No precision-aware match found in collected artifacts.",
+                    claim_context=context,
                 )
             )
             continue
@@ -150,6 +152,7 @@ def compare_numeric_claims(claims: list[NumericClaim], package: PackageManifest)
                 artifact_path=best.artifact_path,
                 artifact_value=best.value,
                 score=round(best_score, 4),
+                claim_context=context,
             )
         )
 

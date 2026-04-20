@@ -404,8 +404,16 @@ def run_bootstrap_command(
             stderr_path=str(stderr_path),
         )
     except subprocess.TimeoutExpired as error:
-        stdout_path.write_text(error.stdout or "", encoding="utf-8", errors="ignore")
-        stderr_path.write_text(error.stderr or "", encoding="utf-8", errors="ignore")
+        raw_out = error.stdout or b""
+        raw_err = error.stderr or b""
+        stdout_path.write_text(
+            raw_out if isinstance(raw_out, str) else raw_out.decode("utf-8", errors="replace"),
+            encoding="utf-8",
+        )
+        stderr_path.write_text(
+            raw_err if isinstance(raw_err, str) else raw_err.decode("utf-8", errors="replace"),
+            encoding="utf-8",
+        )
         duration = time.monotonic() - started
         return BootstrapRecord(
             label=label,

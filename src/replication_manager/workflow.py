@@ -5,10 +5,12 @@ from pathlib import Path
 from typing import Callable
 
 from .agents import build_agent_trace
+from .analysis import analyze_comparison
 from .compare import comparable_figure_artifacts, comparable_table_artifacts, compare_manifests
 from .log import get_logger
 from .models import (
     AgentRecord,
+    AnalysisResult,
     ComparisonBundle,
     ExecutionRecord,
     PackageManifest,
@@ -61,6 +63,7 @@ class WorkflowState:
     screening_complete: bool = False
     execution_records: list[ExecutionRecord] = field(default_factory=list)
     comparison: ComparisonBundle | None = None
+    analysis: AnalysisResult | None = None
     report_markdown: Path | None = None
     report_html: Path | None = None
     summary_json: Path | None = None
@@ -141,6 +144,7 @@ def run_agentic_workflow(
         report_html=require(state.report_html, "HTML report"),
         summary_json=require(state.summary_json, "summary JSON"),
         diagnostic_notes=state.diagnostic_notes,
+        analysis=state.analysis,
     )
 
 
@@ -207,10 +211,17 @@ def default_skills() -> list[WorkflowSkill]:
             run=skill_match_outputs,
         ),
         WorkflowSkill(
+            name="analyze_results",
+            agent="Analyst",
+            phase="Phase B",
+            should_run=lambda state: state.comparison is not None and state.analysis is None,
+            run=skill_analyze_results,
+        ),
+        WorkflowSkill(
             name="write_report",
             agent="Reporter",
             phase="Phase C",
-            should_run=lambda state: state.comparison is not None and not state.report_written,
+            should_run=lambda state: state.analysis is not None and not state.report_written,
             run=skill_write_report,
         ),
     ]
@@ -346,6 +357,10 @@ def skill_screen_package(state: WorkflowState) -> SkillRecord:
             {"number": f.number, "caption": f.caption, "category": f.category, "reason": f.reason}
             for f in report.figure_classifications
         ],
+        "has_visualization_scripts": report.has_visualization_scripts,
+        "visualization_scripts": [Path(s).name for s in report.visualization_scripts],
+        "has_source_data": report.has_source_data,
+        "source_data_files": report.source_data_files,
     })
 
     if state.skip_heavy and report.skipped_scripts > 0:
@@ -463,6 +478,31 @@ def skill_match_outputs(state: WorkflowState) -> SkillRecord:
     )
 
 
+def skill_analyze_results(state: WorkflowState) -> SkillRecord:
+    comparison = require(state.comparison, "comparison bundle")
+    paper = require(state.paper_manifest, "paper manifest")
+    package = require(state.package_manifest, "package manifest")
+
+    state.analysis = analyze_comparison(
+        comparison, paper, package, state.execution_records,
+    )
+
+    a = state.analysis
+    return SkillRecord(
+        name="analyze_results",
+        agent="Analyst",
+        phase="Phase B",
+        status="success",
+        summary=(
+            f"Filtered {a.coincidental_matches + a.coincidental_missing} coincidental claims, "
+            f"{a.substantive_matches}/{a.substantive_matches + a.substantive_missing} substantive matched "
+            f"({a.adjusted_numeric_rate:.0%}). "
+            f"Adjusted verdict: `{a.adjusted_verdict}`."
+        ),
+        artifact_paths=[],
+    )
+
+
 def skill_write_report(state: WorkflowState) -> SkillRecord:
     state.report_markdown, state.report_html = render_reports(
         output_dir=state.output_path,
@@ -475,6 +515,7 @@ def skill_write_report(state: WorkflowState) -> SkillRecord:
         skill_trace=state.skill_trace,
         diagnostic_notes=state.diagnostic_notes,
         screening=state.screening_report,
+        analysis=state.analysis,
     )
     state.report_written = True
     return SkillRecord(
@@ -602,6 +643,7 @@ def finalize_workflow(state: WorkflowState) -> None:
         skill_trace=state.skill_trace,
         diagnostic_notes=state.diagnostic_notes,
         screening=state.screening_report,
+        analysis=state.analysis,
     )
     write_json(state.artifacts_dir / "agent_trace.json", state.agent_trace)
     persist_artifacts(state)
@@ -615,8 +657,10 @@ def finalize_workflow(state: WorkflowState) -> None:
             "package_source": state.package_manifest.source,
             "sandbox_enabled": state.sandbox_manifest.enabled,
             "sandbox_root": state.sandbox_manifest.root,
-            "verdict": state.comparison.summary.verdict,
+            "verdict": state.analysis.adjusted_verdict if state.analysis else state.comparison.summary.verdict,
+            "raw_verdict": state.comparison.summary.verdict,
             "numeric_match_rate": state.comparison.summary.numeric_match_rate,
+            "adjusted_numeric_rate": state.analysis.adjusted_numeric_rate if state.analysis else None,
             "table_match_rate": state.comparison.summary.table_match_rate,
             "figure_match_rate": state.comparison.summary.figure_match_rate,
             "dependency_bootstrap_steps": len(state.sandbox_manifest.install_records),

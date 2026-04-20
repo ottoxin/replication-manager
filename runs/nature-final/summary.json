@@ -1,0 +1,35 @@
+{
+  "paper_title": "Qianyue Hao1, Fengli Xu1 \u2709, Yong Li1,2 \u2709 & James Evans3,4 \u2709",
+  "paper_source": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/inputs/paper.pdf",
+  "package_source": "/gpfs/projects/p33196/kym9881/replication-manager/examples/nature-ai-impacts",
+  "sandbox_enabled": true,
+  "sandbox_root": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/sandbox",
+  "verdict": "largely reproducible",
+  "raw_verdict": "partially reproducible",
+  "numeric_match_rate": 0.7607,
+  "adjusted_numeric_rate": 0.7005,
+  "table_match_rate": 0.0,
+  "figure_match_rate": 0.0,
+  "dependency_bootstrap_steps": 1,
+  "agents": [
+    "Coordinator",
+    "Executor",
+    "Reporter",
+    "Analyst"
+  ],
+  "skills": [
+    "intake_sources",
+    "profile_paper",
+    "inspect_package",
+    "prepare_workspace",
+    "screen_package",
+    "execute_package",
+    "diagnose_execution",
+    "match_outputs",
+    "analyze_results",
+    "write_report"
+  ],
+  "diagnostic_notes": [],
+  "report_markdown": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.md",
+  "report_html": "/gpfs/projects/p33196/kym9881/replication-manager/runs/nature-final/report.html"
+}

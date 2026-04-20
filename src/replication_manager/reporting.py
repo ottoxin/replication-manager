@@ -8,6 +8,7 @@ from jinja2 import Environment
 from .log import get_logger
 from .models import (
     AgentRecord,
+    AnalysisResult,
     ComparisonBundle,
     ExecutionRecord,
     PackageManifest,
@@ -26,10 +27,20 @@ MARKDOWN_TEMPLATE = """
 ## Summary
 
 - Paper: {{ paper.title }}
-- Verdict: **{{ comparison.summary.verdict }}**
-- Numeric match rate: {{ pct(comparison.summary.numeric_match_rate) }} ({{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }})
+- Verdict: **{{ analysis.adjusted_verdict if analysis else comparison.summary.verdict }}**
+- Numeric match rate: {{ pct(analysis.adjusted_numeric_rate) if analysis else pct(comparison.summary.numeric_match_rate) }} ({% if analysis %}{{ analysis.substantive_matches }}/{{ analysis.substantive_matches + analysis.substantive_missing }} substantive{% else %}{{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }}{% endif %})
 - Table match rate: {{ pct(comparison.summary.table_match_rate) }} ({{ comparison.summary.matched_tables }}/{{ comparison.summary.total_tables }})
 - Figure match rate: {{ pct(comparison.summary.figure_match_rate) }} ({{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }})
+{% if analysis %}
+
+### AI Analysis
+
+{{ analysis.reasoning }}
+
+- Substantive matches: {{ analysis.substantive_matches }}
+- Coincidental filtered: {{ analysis.coincidental_matches + analysis.coincidental_missing }}
+- Figures with source data: {{ analysis.reproducible_figures }}/{{ analysis.reproducible_figures + analysis.infeasible_figures }}
+{% endif %}
 
 ## Inputs
 
@@ -158,10 +169,10 @@ MARKDOWN_TEMPLATE = """
 
 ## Numeric Comparison
 
-| Paper claim | Source | Paper value | Artifact value | Artifact | Score | Status |
-| --- | --- | ---: | ---: | --- | ---: | --- |
+| Paper claim | Source | Context | Paper value | Artifact value | Artifact | Score | Status |
+| --- | --- | --- | ---: | ---: | --- | ---: | --- |
 {% for match in comparison.numeric_matches -%}
-| `{{ match.claim_raw }}` | {{ match.claim_source }} | {{ match.claim_value }} | {{ match.artifact_value if match.artifact_value is not none else "—" }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.score) }} | {{ "matched" if match.matched else "missing" }} |
+| `{{ match.claim_raw }}` | {{ match.claim_source }} | {{ match.claim_context[:80] if match.claim_context else "" }} | {{ match.claim_value }} | {{ match.artifact_value if match.artifact_value is not none else "—" }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.score) }} | {{ "matched" if match.matched else "missing" }} |
 {% endfor %}
 """
 
@@ -438,12 +449,12 @@ HTML_TEMPLATE = """
   <main>
     <section class="hero" id="summary">
       <h1>{{ paper.title }}</h1>
-      <p>Verdict: <strong>{{ comparison.summary.verdict }}</strong></p>
+      <p>Verdict: <strong>{{ analysis.adjusted_verdict if analysis else comparison.summary.verdict }}</strong></p>
       <div class="metrics">
         <div class="metric">
-          <span>Numeric match rate</span>
-          <strong>{{ pct(comparison.summary.numeric_match_rate) }}</strong>
-          <small>{{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }}</small>
+          <span>Numeric match rate{% if analysis %} (adjusted){% endif %}</span>
+          <strong>{{ pct(analysis.adjusted_numeric_rate) if analysis else pct(comparison.summary.numeric_match_rate) }}</strong>
+          <small>{% if analysis %}{{ analysis.substantive_matches }}/{{ analysis.substantive_matches + analysis.substantive_missing }} substantive{% else %}{{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }}{% endif %}</small>
         </div>
         <div class="metric">
           <span>Table match rate</span>
@@ -456,6 +467,26 @@ HTML_TEMPLATE = """
           <small>{{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }}</small>
         </div>
       </div>
+      {% if analysis %}
+      <div style="margin-top: 16px; padding: 12px 16px; background: var(--surface); border-radius: 8px; border-left: 4px solid var(--accent);">
+        <strong>AI Analysis:</strong>
+        <p style="margin: 8px 0 0 0; font-size: 0.9em; line-height: 1.5;">{{ analysis.reasoning }}</p>
+        <div class="metrics" style="margin-top: 12px;">
+          <div class="metric">
+            <span>Substantive matches</span>
+            <strong>{{ analysis.substantive_matches }}</strong>
+          </div>
+          <div class="metric">
+            <span>Coincidental filtered</span>
+            <strong>{{ analysis.coincidental_matches + analysis.coincidental_missing }}</strong>
+          </div>
+          <div class="metric">
+            <span>Figures with source data</span>
+            <strong>{{ analysis.reproducible_figures }}/{{ analysis.reproducible_figures + analysis.infeasible_figures }}</strong>
+          </div>
+        </div>
+      </div>
+      {% endif %}
       <p>Paper source: <code>{{ paper.source }}</code></p>
       <p>Package source: <code>{{ package.source }}</code></p>
     </section>
@@ -696,8 +727,8 @@ HTML_TEMPLATE = """
         <div class="figure-pair">
           <div class="figure-card">
             <h4>Published (Paper)</h4>
-            {% if paper_figure_images and match.figure_number in paper_figure_images %}
-              <img src="data:image/png;base64,{{ paper_figure_images[match.figure_number] }}" alt="Paper Figure {{ match.figure_number }}">
+            {% if paper_figure_images and fig_key(match.figure_number) in paper_figure_images %}
+              <img src="data:image/png;base64,{{ paper_figure_images[fig_key(match.figure_number)] }}" alt="Paper Figure {{ match.figure_number }}">
             {% else %}
               <div class="no-image">Figure from paper (extract PDF to view)</div>
             {% endif %}
@@ -706,8 +737,13 @@ HTML_TEMPLATE = """
             <h4>Replicated (Artifact)</h4>
             {% if match.artifact_path and embed_image(match.artifact_path) %}
               <img src="data:image/{{ image_ext(match.artifact_path) }};base64,{{ embed_image(match.artifact_path) }}" alt="Replicated Figure {{ match.figure_number }}">
+            {% elif figure_source_data and fig_key(match.figure_number) in figure_source_data %}
+              <div class="no-image" style="padding:12px;">
+                Source data available ({{ figure_source_data[fig_key(match.figure_number)]|length }} file(s))<br>
+                <small style="color:var(--muted);">No visualization script provided in package</small>
+              </div>
             {% else %}
-              <div class="no-image">{{ basename(match.artifact_path) if match.artifact_path else 'No artifact found' }}</div>
+              <div class="no-image">No artifact found</div>
             {% endif %}
           </div>
         </div>
@@ -730,12 +766,22 @@ HTML_TEMPLATE = """
         <input type="text" placeholder="Search claims..." oninput="searchTable(this, 'num-cmp')">
       </div>
       <table id="num-cmp">
-        <thead><tr><th>Paper claim</th><th>Source</th><th>Paper value</th><th>Artifact value</th><th>Artifact</th><th>Score</th><th>Status</th></tr></thead>
+        <thead><tr><th>Paper claim</th><th>Source</th><th>In-text context</th>{% if analysis %}<th>Type</th>{% endif %}<th>Paper value</th><th>Artifact value</th><th>Artifact</th><th>Score</th><th>Status</th></tr></thead>
         <tbody>
         {% for match in comparison.numeric_matches %}
           <tr data-matched="{{ 'matched' if match.matched else 'missing' }}">
             <td><code>{{ match.claim_raw }}</code></td>
             <td>{{ match.claim_source }}</td>
+            <td style="font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ match.claim_context if match.claim_context else '' }}">{{ match.claim_context[:100] if match.claim_context else '' }}</td>
+            {% if analysis %}
+            <td>
+              {% if claim_types[loop.index0]['coincidental'] %}
+                <span style="color:var(--muted);font-size:0.8em;" title="{{ claim_types[loop.index0]['reason'] }}">coincidental</span>
+              {% else %}
+                <span style="font-size:0.8em;">substantive</span>
+              {% endif %}
+            </td>
+            {% endif %}
             <td><span class="numeric-pair"><span class="paper-val">{{ match.claim_value }}</span></span></td>
             <td>
               {% if match.artifact_value is not none %}
@@ -829,6 +875,7 @@ def render_reports(
     skill_trace: list[SkillRecord],
     diagnostic_notes: list[str],
     screening=None,
+    analysis: AnalysisResult | None = None,
 ) -> tuple[Path, Path]:
     ensure_dir(output_dir)
     logger.info("Rendering reports to %s", output_dir)
@@ -869,6 +916,14 @@ def render_reports(
         return {"jpg": "jpeg"}.get(ext, ext)
 
     paper_figure_images = _extract_pdf_figures(paper.source, package.root)
+    figure_source_data = _find_figure_source_data(package, comparison)
+
+    def fig_key(figure_number: str) -> str:
+        """Normalize 'E8', '1 | caption...' etc. to the clean key used in paper_figure_images."""
+        import re
+        stripped = figure_number.split("|")[0].split(":")[0].strip()
+        m = re.match(r"(E?)(\d+)", stripped)
+        return f"{m.group(1)}{m.group(2)}" if m else stripped
 
     environment = Environment(trim_blocks=True, lstrip_blocks=True, autoescape=True)
     environment.globals["pct"] = lambda value: f"{value * 100:.1f}%"
@@ -876,6 +931,7 @@ def render_reports(
     environment.globals["basename"] = basename
     environment.globals["embed_image"] = embed_image
     environment.globals["image_ext"] = image_ext
+    environment.globals["fig_key"] = fig_key
     context = {
         "paper": paper,
         "package": package,
@@ -887,7 +943,12 @@ def render_reports(
         "diagnostic_notes": diagnostic_notes,
         "suggestions": suggestions,
         "screening": screening,
+        "analysis": analysis,
+        "claim_types": {
+            i: c for i, c in enumerate(analysis.claim_classifications)
+        } if analysis else {},
         "paper_figure_images": paper_figure_images,
+        "figure_source_data": figure_source_data,
     }
 
     md_env = Environment(trim_blocks=True, lstrip_blocks=True)
@@ -899,21 +960,71 @@ def render_reports(
     html_path = output_dir / "report.html"
     markdown_path.write_text(markdown)
     html_path.write_text(html)
+
+    _export_pdf(html_path, output_dir / "report.pdf")
+
     return markdown_path, html_path
 
 
-def _extract_pdf_figures(paper_source: str, package_root: str | None = None) -> dict[str, str]:
-    """Extract figure images from PDF pages and/or article HTML.
+def _export_pdf(html_path: Path, pdf_path: Path) -> None:
+    try:
+        from weasyprint import HTML
+        HTML(filename=str(html_path)).write_pdf(str(pdf_path))
+        logger.info("Exported PDF report: %s", pdf_path.name)
+    except ImportError:
+        logger.debug("weasyprint not installed; skipping PDF export")
+    except Exception as exc:
+        logger.warning("PDF export failed: %s", exc)
 
-    Returns {figure_number: base64_image_data}.
-    Tries two strategies:
-    1. Render PDF pages containing figure captions as PNG
-    2. Download figure images from the article HTML (Nature, Springer, etc.)
+
+def _find_figure_source_data(
+    package: PackageManifest,
+    comparison: ComparisonBundle,
+) -> dict[str, list[dict]]:
+    """Find source data artifacts matching each figure number.
+
+    Returns {normalized_fig_key: [{path, label, preview}]}.
     """
+    import re
+
+    result: dict[str, list[dict]] = {}
+    source_pattern = re.compile(
+        r"(?:source_?data|sourcedata)[_/](?:ext)?fig(?:ure)?[_.]?(\d+)",
+        re.IGNORECASE,
+    )
+
+    for artifact in package.table_artifacts:
+        label_lower = artifact.label.lower()
+        path_lower = artifact.path.lower()
+        combined = f"{path_lower} {label_lower}"
+
+        m = source_pattern.search(combined)
+        if not m:
+            continue
+
+        fig_num = m.group(1)
+        is_ext = "ext" in combined.split("fig")[0].split("/")[-1] if "ext" in combined else False
+        key = f"E{fig_num}" if is_ext else fig_num
+
+        entry = {
+            "path": artifact.path,
+            "label": artifact.label,
+        }
+
+        if key not in result:
+            result[key] = []
+        result[key].append(entry)
+
+    return result
+
+
+def _extract_pdf_figures(paper_source: str, package_root: str | None = None) -> dict[str, str]:
+    """Extract figure images, preferring HTML downloads over PDF page renders."""
     figures: dict[str, str] = {}
-    figures.update(_extract_figures_from_pdf(paper_source))
     html_figures = _download_figures_from_html(paper_source, package_root)
-    for key, val in html_figures.items():
+    figures.update(html_figures)
+    pdf_figures = _render_figures_from_pdf(paper_source)
+    for key, val in pdf_figures.items():
         if key not in figures:
             figures[key] = val
     if figures:
@@ -921,7 +1032,7 @@ def _extract_pdf_figures(paper_source: str, package_root: str | None = None) -> 
     return figures
 
 
-def _extract_figures_from_pdf(paper_source: str) -> dict[str, str]:
+def _render_figures_from_pdf(paper_source: str) -> dict[str, str]:
     import io
     import re
 
@@ -967,31 +1078,31 @@ def _extract_figures_from_pdf(paper_source: str) -> dict[str, str]:
 
 
 def _download_figures_from_html(paper_source: str, package_root: str | None = None) -> dict[str, str]:
-    """Download figure images from the article HTML page.
-
-    Looks for an HTML file in the inputs directory, package root,
-    or parent directories.
-    """
     import re
     import subprocess
 
     search_dirs = [Path(paper_source).parent]
     if package_root:
-        search_dirs.append(Path(package_root))
-        original_root = Path(package_root)
+        pkg = Path(package_root)
+        search_dirs.append(pkg)
+        for parent in [pkg.parent, pkg.parent.parent]:
+            search_dirs.append(parent)
+        original_root = pkg
         while original_root.name in ("project", "sandbox"):
             original_root = original_root.parent
         search_dirs.append(original_root)
 
     html_files: list[Path] = []
     for d in search_dirs:
-        html_files.extend(d.glob("*.html"))
-        html_files.extend(d.glob("*.htm"))
+        if d.is_dir():
+            html_files.extend(d.glob("*.html"))
+            html_files.extend(d.glob("*.htm"))
     html_content = ""
     for hf in html_files:
         try:
-            html_content = hf.read_text(errors="replace")
-            if "figure" in html_content.lower() or "Fig" in html_content:
+            content = hf.read_text(errors="replace")
+            if "figure" in content.lower() or "Fig" in content:
+                html_content = content
                 break
         except Exception:
             continue
@@ -999,52 +1110,94 @@ def _download_figures_from_html(paper_source: str, package_root: str | None = No
     if not html_content:
         return {}
 
+    article_doi = _detect_article_doi(html_content)
+
     figures: dict[str, str] = {}
 
     main_fig_pattern = re.compile(
-        r'src="((?:https?:)?//[^"]*?Fig(\d+)_HTML\.[a-z]+)"',
+        r'src="((?:https?:)?//media\.springernature\.com/(?:lw\d+|full)/[^"]*?Fig(\d+)_HTML\.\w+)(?:\?[^"]*)?\"',
         re.IGNORECASE,
     )
     for match in main_fig_pattern.finditer(html_content):
         url = match.group(1)
+        if article_doi and article_doi not in url:
+            continue
         if url.startswith("//"):
             url = "https:" + url
+        if "?as=webp" in url:
+            continue
         fig_num = match.group(2)
         if fig_num in figures:
             continue
-        try:
-            result = subprocess.run(
-                ["curl", "-sL", "--max-time", "15", url],
-                capture_output=True, timeout=20,
-            )
-            if result.returncode == 0 and len(result.stdout) > 1000:
-                figures[fig_num] = base64.b64encode(result.stdout).decode("ascii")
-        except Exception:
-            continue
+        data = _curl_image(url)
+        if data:
+            figures[fig_num] = data
 
     ext_fig_pattern = re.compile(
-        r'(?:src|data-supp-info-image)="((?:https?:)?//[^"]*?Fig(\d+)_ESM\.[a-z]+)"',
+        r'(?:src|data-supp-info-image)="((?:https?:)?//media\.springernature\.com/[^"]*?Fig(\d+)_ESM\.\w+)(?:\?[^"]*)?\"',
         re.IGNORECASE,
     )
+    num_main_figs = len(figures)
     for match in ext_fig_pattern.finditer(html_content):
         url = match.group(1)
+        if article_doi and article_doi not in url:
+            continue
         if url.startswith("//"):
             url = "https:" + url
         raw_num = int(match.group(2))
-        fig_key = f"E{raw_num - 4}" if raw_num > 4 else str(raw_num)
+        fig_key = f"E{raw_num - num_main_figs}" if raw_num > num_main_figs else str(raw_num)
         if fig_key in figures:
             continue
-        try:
-            result = subprocess.run(
-                ["curl", "-sL", "--max-time", "15", url],
-                capture_output=True, timeout=20,
-            )
-            if result.returncode == 0 and len(result.stdout) > 1000:
-                figures[fig_key] = base64.b64encode(result.stdout).decode("ascii")
-        except Exception:
-            continue
+        data = _curl_image(url)
+        if data:
+            figures[fig_key] = data
+
+    if not figures:
+        generic_pattern = re.compile(
+            r'src="((?:https?:)?//[^"]+/(?:Fig|figure)[^"]*\.(?:png|jpg|jpeg|gif|svg))"',
+            re.IGNORECASE,
+        )
+        for i, match in enumerate(generic_pattern.finditer(html_content)):
+            url = match.group(1)
+            if url.startswith("//"):
+                url = "https:" + url
+            key = str(i + 1)
+            if key in figures:
+                continue
+            data = _curl_image(url)
+            if data:
+                figures[key] = data
 
     return figures
+
+
+def _detect_article_doi(html_content: str) -> str:
+    import re
+    doi_match = re.search(r'doi\.org/(10\.\d+/[^"&\s]+)', html_content)
+    if doi_match:
+        doi = doi_match.group(1)
+        parts = doi.replace("/", "_").replace(".", "_").replace("-", "_")
+        nums = re.findall(r"\d{4,}", parts)
+        if nums:
+            return nums[-1]
+    article_match = re.search(r"(\d{5}_\d{4}_\d{4,5})", html_content)
+    if article_match:
+        return article_match.group(1)
+    return ""
+
+
+def _curl_image(url: str) -> str:
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["curl", "-sL", "--max-time", "15", url],
+            capture_output=True, timeout=20,
+        )
+        if result.returncode == 0 and len(result.stdout) > 1000:
+            return base64.b64encode(result.stdout).decode("ascii")
+    except Exception:
+        pass
+    return ""
 
 
 def generate_suggestions(

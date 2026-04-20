@@ -1,171 +1,164 @@
 # Replication Manager
 
-`replication-manager` is a lightweight pre-submission replication framework inspired by Yiqing Xu and Leo Yang Yang's paper, ["Scaling Reproducibility: An AI-Assisted Workflow for Large-Scale Replication and Reanalysis"](https://yiqingxu.org/papers/2026_ai/AI_reproducibility.pdf).
+A pre-submission replication framework that takes a paper and its replication package, runs the code in a clean sandbox, and generates a report comparing reported and reproduced outputs.
 
-The main use case is journal submission prep: take a paper plus its replication package, run the package in a clean sandbox, install the declared dependencies, and generate a report showing what reproduced, what is blocked upstream, and what still depends on undeclared environment assumptions.
+Inspired by Yiqing Xu and Leo Yang Yang's ["Scaling Reproducibility: An AI-Assisted Workflow for Large-Scale Replication and Reanalysis"](https://yiqingxu.org/papers/2026_ai/AI_reproducibility.pdf).
 
-## Core Workflow
+![System Flowchart](docs/flowchart.svg)
 
-The paper's full system is a three-layer, multi-agent workflow with execution, verification, and diagnostic phases. This repo now keeps that structure in a compact form:
-
-1. A `Coordinator` agent profiles the paper, inspects the package, and builds shared state.
-2. An `Executor` agent prepares a clean workspace, runs scripts, and diagnoses blocked stages.
-3. A `Reporter` agent matches outputs back to the paper and writes the submission-facing report.
-
-Each agent uses deterministic skills rather than open-ended LLM execution. The main built-in skills are:
-
-- `intake_sources`
-- `profile_paper`
-- `inspect_package`
-- `prepare_workspace`
-- `execute_package`
-- `diagnose_execution`
-- `match_outputs`
-- `write_report`
-
-## Pre-Submission Defaults
-
-By default, `replication-manager run` behaves like a pre-submission checker:
-
-- It copies the unpacked package into `output_dir/sandbox/project`.
-- It sets a fresh `HOME` and temporary directory.
-- It creates a Python virtual environment under `output_dir/sandbox/.venv` when Python execution is involved.
-- It disables Python user site-packages inside the sandbox.
-- It uses an isolated R library directory under `output_dir/sandbox/r_libs`.
-- It bootstraps dependencies before executing the replication scripts.
-
-That is deliberate. If the package only works because your laptop already has the right packages installed, this tool should expose that before submission.
-
-## Supported Dependency Bootstrap
-
-Automatic bootstrap support is pragmatic rather than exhaustive:
-
-- Python dependencies from `requirements.txt`
-- Python project install from `pyproject.toml`, `setup.py`, or `setup.cfg`
-- R dependencies from `renv.lock`
-- R setup scripts from `install.R`, `packages.R`, or `setup.R`
-
-Unsupported environment files are still detected and surfaced in the package manifest and notes.
-
-## What It Keeps From The Paper
-
-- Phase A: acquisition and execution.
-- Phase B: reproducibility verification with precision-aware numeric matching.
-- Phase C: a report layer that summarizes what matched and what did not.
-- Explicit artifacts on disk for each stage.
-- A structure that can accept a replication package as a `.zip`.
-
-## What It Simplifies
-
-- A compact three-agent loop instead of a larger multi-agent system.
-- Deterministic local skills instead of a live LLM planner.
-- No persistent knowledge base of failure patterns.
-- No full econometric diagnostics like the paper's IV pipeline.
-- No OCR or vision extraction for complicated PDFs.
-
-This is a practical replication checker, not a full reimplementation of the paper's production system.
-
-## Installation
+## Quick Start
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[all]"
+
+replication-manager run \
+  --paper paper.pdf \
+  --package replication_package/ \
+  --output-dir runs/check
 ```
+
+## System Architecture
+
+The system uses a compact three-phase, multi-agent workflow with deterministic skills:
+
+### Phase A: Acquisition & Screening
+
+| Agent | Skill | Purpose |
+|-------|-------|---------|
+| Coordinator | `intake_sources` | Materialize paper (PDF/HTML/text) and package (ZIP/dir/GitHub) |
+| Coordinator | `profile_paper` | Extract tables, figures, and numeric claims from the paper |
+| Coordinator | `inspect_package` | Discover scripts, artifacts, and environment files |
+| Coordinator | `screen_package` | Classify scripts (lightweight/GPU/heavy), detect visualization code, check data availability |
+| Executor | `prepare_workspace` | Create sandbox with isolated venv, R libs, and dependency bootstrap |
+| Executor | `execute_package` | Run scripts in DAG-ordered sequence |
+
+### Phase B: Verification & Analysis
+
+| Agent | Skill | Purpose |
+|-------|-------|---------|
+| Executor | `diagnose_execution` | Identify environment gaps, blocked stages, and missing dependencies |
+| Reporter | `match_outputs` | Precision-aware numeric matching, table comparison, image hashing for figures |
+| Analyst | `analyze_results` | Filter coincidental matches (citations, versions), compute adjusted verdict |
+
+### Phase C: Reporting
+
+| Agent | Skill | Purpose |
+|-------|-------|---------|
+| Reporter | `write_report` | Generate HTML and Markdown reports with side-by-side figure comparison |
+
+## Key Features
+
+- **Smart screening**: Classifies scripts as lightweight/GPU/heavy before execution. Detects whether visualization scripts exist in the package.
+- **Coincidental match filtering**: Separates substantive research findings from citation numbers, version numbers, and equation references.
+- **Side-by-side figure comparison**: Downloads published figures from journal HTML (Nature/Springer CDN) and compares against replicated artifacts.
+- **Source data awareness**: Identifies source data files for each figure and reports when visualization code is missing.
+- **Adjusted verdicts**: Reports match rates based on substantive claims only, not raw totals inflated by coincidental matches.
 
 ## Usage
 
-The main command accepts a paper path or URL plus a replication package path, directory, or URL.
-
-Recommended pre-submission run:
-
 ```bash
-replication-manager run \
-  --paper /path/to/paper.pdf \
-  --package /path/to/replication_package.zip \
-  --output-dir runs/pre_submission_check
-```
+# Full run
+replication-manager run --paper paper.pdf --package package/ --output-dir runs/test
 
-Example with a remote paper:
+# Screen only (no execution)
+replication-manager run --paper paper.pdf --package package/ --output-dir runs/test --no-execute
 
-```bash
-replication-manager run \
-  --paper https://yiqingxu.org/papers/2026_ai/AI_reproducibility.pdf \
-  --package /path/to/replication_package.zip \
-  --output-dir runs/ai-reproducibility
-```
+# Skip GPU and heavy-compute scripts
+replication-manager run --paper paper.pdf --package package/ --output-dir runs/test --skip-heavy
 
-If you only want to inspect the package and compare already-existing artifacts, skip script execution:
+# Remote paper + local package
+replication-manager run --paper https://example.com/paper.pdf --package package.zip --output-dir runs/test
 
-```bash
-replication-manager run \
-  --paper /path/to/paper.pdf \
-  --package /path/to/replication_package.zip \
-  --output-dir runs/no-exec \
-  --no-execute
-```
-
-If you need to debug outside the clean sandbox:
-
-```bash
-replication-manager run \
-  --paper /path/to/paper.pdf \
-  --package /path/to/replication_package.zip \
-  --output-dir runs/debug \
-  --no-sandbox
-```
-
-If you want the clean sandbox but need to skip bootstrap temporarily:
-
-```bash
-replication-manager run \
-  --paper /path/to/paper.pdf \
-  --package /path/to/replication_package.zip \
-  --output-dir runs/debug \
-  --no-install
+# Debug without sandbox
+replication-manager run --paper paper.pdf --package package/ --output-dir runs/debug --no-sandbox
 ```
 
 ## Output Layout
 
-Each run writes structured outputs under the chosen output directory:
+```
+output-dir/
+  report.html              # Interactive HTML report with figure comparison
+  report.md                # Markdown report
+  summary.json             # Condensed run metrics
+  inputs/                  # Materialized paper and package
+  workspace/               # Extracted package contents
+  sandbox/                 # Isolated execution environment
+  artifacts/
+    paper_manifest.json    # Extracted claims, tables, figures
+    package_manifest.json  # Scripts, artifacts, environment files
+    screening_report.json  # Script classifications, viz detection, recommendations
+    comparison.json        # Numeric/table/figure match details
+    analysis.json          # Claim classifications, adjusted verdict
+```
 
-- `inputs/`: materialized paper and package inputs.
-- `workspace/package/`: extracted package contents.
-- `sandbox/`: clean execution copy, isolated home/temp directories, virtual environment, and bootstrap logs.
-- `artifacts/paper_manifest.json`: extracted tables, figures, and numeric claims from the paper.
-- `artifacts/raw_package_manifest.json`: inspection of the unpacked package before sandboxing.
-- `artifacts/sandbox_manifest.json`: sandbox configuration and dependency bootstrap records.
-- `artifacts/package_manifest.json`: discovered scripts and output candidates after sandbox preparation and execution.
-- `artifacts/execution_manifest.json`: execution logs and return codes.
-- `artifacts/comparison.json`: match details for numbers, tables, and figures.
-- `report.md`: human-readable comparison report.
-- `report.html`: browser-friendly report.
-- `summary.json`: condensed run summary.
+## Example: Nature Paper Replication
 
-## Design Mapping
+The `examples/nature-ai-impacts/` directory contains the replication package for [Hao et al. (2026) "AI tools expand scientists' impact but contract science's focus"](https://doi.org/10.1038/s41586-025-09922-y) (*Nature*).
 
-The original paper separates planning, execution, and verification. This repo maps that into a small orchestrated workflow:
+```bash
+replication-manager run \
+  --paper examples/nature-ai-impacts/paper.pdf \
+  --package examples/nature-ai-impacts/ \
+  --output-dir runs/nature \
+  --skip-heavy
+```
 
-- `workflow.py`: compact agent loop, skill registry, shared workflow state, and diagnostics.
-- `paper.py`: paper parsing and claim extraction.
-- `package.py`: package download, unzip, inspection, and artifact collection.
-- `sandbox.py`: clean execution copy, environment isolation, and dependency bootstrap.
-- `runner.py`: supported script execution.
-- `compare.py`: precision-aware matching and verdict logic.
-- `agents.py`: concise agent summaries built from the executed skills.
-- `reporting.py`: report generation with both agent and skill traces.
+Results from the included final run (`runs/nature-final/`):
+- **234 numeric claims** extracted, **47 filtered** as coincidental
+- **131/187 substantive claims matched** (70%)
+- **Adjusted verdict: largely reproducible**
+- 14 published figures with HTML-downloaded images; 11 have source data but no visualization scripts provided
 
-## Notes
+## Screening Intelligence
 
-- `Rscript` is used automatically when available.
-- Stata `.do` execution requires setting `REPLICATION_MANAGER_STATA_BIN`.
-- This tool only installs dependencies that are declared in supported manifests. Hidden machine-specific dependencies are exactly what this workflow is meant to expose.
-- Arbitrary replication packages can execute arbitrary code. Use an OS-level sandbox or container when needed.
+The screening phase detects:
+- **GPU scripts**: torch, tensorflow, cuda imports
+- **Heavy-compute scripts**: chunked reads, distributed processing, large-data indicators
+- **Visualization scripts**: matplotlib, seaborn, ggplot, savefig, plotly usage
+- **Source data**: SourceData files matching figure numbers
+- **Missing inputs**: referenced data files not present in the package
+
+When visualization scripts are absent but source data exists, the screening report flags this gap.
+
+## Claude Code Skills
+
+The `.claude/skills/` directory provides Claude Code skills for interactive use:
+
+- **`/replicate-paper`** — End-to-end replication with screening, execution, analysis, and reporting
+- **`/inspect-replication`** — Quick feasibility check without execution
+- **`/analyze-replication`** — AI-powered post-comparison analysis: classify claims, assess figures, compute adjusted verdict
+
+## Supported Environments
+
+- Python dependencies from `requirements.txt`, `pyproject.toml`, `setup.py`
+- R dependencies from `renv.lock`, `install.R`, `packages.R`
+- Conda environments from `environment.yml`
+- Code Ocean capsule layouts with mount path shimming
+- Stata `.do` execution via `REPLICATION_MANAGER_STATA_BIN`
+
+## Module Map
+
+| Module | Purpose |
+|--------|---------|
+| `workflow.py` | Skill-based state machine orchestrating the three-phase pipeline |
+| `screening.py` | Pre-execution feasibility analysis and script classification |
+| `analysis.py` | Post-comparison heuristic filtering and adjusted verdict computation |
+| `paper.py` | PDF/HTML/text parsing with pdfplumber structured table extraction |
+| `compare.py` | Precision-aware numeric matching and optional image hashing |
+| `sandbox.py` | Isolated execution with Python venv, R libs, conda support |
+| `dag.py` | Script dependency graph for topological execution ordering |
+| `reporting.py` | HTML/Markdown report generation with side-by-side figure comparison |
+| `runner.py` | Script execution with timeout, logging, and output capture |
 
 ## Development
 
-Run the built-in tests with:
-
 ```bash
-python3 -m unittest discover -s tests -v
+python -m pytest tests/ -v
 ```
+
+## Notes
+
+- Arbitrary replication packages can execute arbitrary code. Use an OS-level sandbox or container when needed.
+- PDF export requires a modern pango library (>=1.50). On older systems, only HTML and Markdown reports are generated.
+- This tool only installs dependencies declared in supported manifests. Hidden machine-specific dependencies are exactly what this workflow is meant to expose.

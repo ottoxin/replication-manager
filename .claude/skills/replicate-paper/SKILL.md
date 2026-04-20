@@ -69,16 +69,24 @@ replication-manager run --paper <paper> --package <package> --output-dir <dir> -
 replication-manager run --paper <paper> --package <package> --output-dir <dir> --no-execute
 ```
 
-### Step 5: Report Results
+### Step 5: AI Analysis
 
-After the run completes:
-1. Read `report.md` for the full comparison
-2. Check the screening section for what was skipped and why
-3. Present the verdict, match rates, and any suggestions
-4. Provide the path to `report.html` for interactive browsing
+After the run completes, analyze the results intelligently:
 
-Key metrics to highlight:
-- Verdict (fully/largely/partially/not reproducible)
-- How many scripts ran vs skipped
-- Numeric/table/figure match rates
-- Which figures were classified as manually created
+1. Read `report.md` and look at the numeric comparison table
+2. For each numeric match, determine if it's a **substantive** research finding or a **coincidental** match (citation number, version number, equation reference, etc.)
+3. Assess each figure: does source data exist? Would it need GPU/heavy compute to reproduce?
+4. Compute an adjusted match rate counting only substantive claims
+5. Write the analysis to `analysis.json` in the output directory
+
+This step is critical because raw numeric matching can inflate rates by counting coincidental matches (e.g., "refs. 37,38" matching a 37.0 in the data).
+
+### Step 6: Report Results
+
+After analysis:
+1. Present the **adjusted verdict** (not the raw one)
+2. Show how many claims were filtered as coincidental with examples
+3. Highlight the substantive match rate
+4. For figures: which have source data, which need compute, which are infeasible
+5. Provide the path to `report.html` for interactive browsing with side-by-side figure comparison
+6. Give specific recommendations for improving the replication

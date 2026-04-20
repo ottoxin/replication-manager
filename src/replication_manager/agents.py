@@ -7,6 +7,7 @@ AGENT_ROLES = {
     "Coordinator": "Plans the next skill and builds the shared replication state.",
     "Executor": "Prepares the runtime, runs scripts, and diagnoses execution blockers.",
     "Reporter": "Compares outputs to the paper and compiles the submission-facing report.",
+    "Analyst": "Filters coincidental matches and assesses what can and cannot be replicated.",
 }
 
 

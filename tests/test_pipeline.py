@@ -207,6 +207,7 @@ class PipelineTests(unittest.TestCase):
                 "Coordinator",
                 "Executor",
                 "Reporter",
+                "Analyst",
             ])
             self.assertEqual([skill.name for skill in result.skill_trace], [
                 "intake_sources",
@@ -217,6 +218,7 @@ class PipelineTests(unittest.TestCase):
                 "execute_package",
                 "diagnose_execution",
                 "match_outputs",
+                "analyze_results",
                 "write_report",
             ])
             self.assertGreaterEqual(len(result.sandbox_manifest.install_records), 1)

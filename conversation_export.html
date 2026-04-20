@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Replication Manager — Development Log</title>
+  <style>
+    :root {
+      --paper: #f6f1e7;
+      --panel: #fffdf8;
+      --ink: #1e2328;
+      --muted: #5b6470;
+      --rule: #d6c7b4;
+      --accent: #8f3f22;
+      --accent-2: #1f5f63;
+      --code: #efe7da;
+      --ok: #22613b;
+      --warn: #8a5a00;
+      --bad: #8a1c1c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(143, 63, 34, 0.15), transparent 28rem),
+        linear-gradient(180deg, #efe4d2 0, var(--paper) 24rem, #fbf8f1 100%);
+      font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      line-height: 1.55;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 44px 22px 76px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 28px;
+    }
+
+    .hero, .card, .turn, .artifact {
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: 18px;
+      box-shadow: 0 18px 48px rgba(74, 44, 18, 0.08);
+    }
+
+    .hero { padding: 32px; }
+    .meta { padding: 26px; color: var(--muted); }
+
+    h1, h2, h3 { line-height: 1.12; margin: 0 0 12px; }
+    h1 { font-size: clamp(2.1rem, 4vw, 3.6rem); letter-spacing: -0.04em; }
+    h2 { margin-top: 34px; font-size: 1.55rem; color: var(--accent); }
+    h3 { font-size: 1.06rem; color: var(--accent-2); }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 8px 0 0 1.35rem; padding: 0; }
+    li { margin: 5px 0; }
+
+    code, .tag {
+      background: var(--code);
+      border-radius: 7px;
+      padding: 2px 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      margin: 10px 0 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      border-radius: 12px;
+      background: #251f1a;
+      color: #f5eadc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th { background: #f0e6d6; color: #2c2c2c; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .card { padding: 18px; }
+
+    .session-label {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-radius: 999px;
+      padding: 4px 12px;
+      margin-bottom: 12px;
+    }
+    .codex-label { background: #e7e0ef; color: #5b21b6; }
+    .claude-label { background: #dae8e9; color: #0e7490; }
+
+    .turn { margin: 18px 0; padding: 18px; }
+
+    .turn-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .role {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-radius: 999px;
+      padding: 4px 9px;
+      background: #eadcc9;
+    }
+
+    .user .role { background: #dae8e9; }
+    .assistant .role { background: #eadcc9; }
+
+    .prompt, .output {
+      border-left: 4px solid var(--accent-2);
+      padding: 10px 0 10px 14px;
+      margin: 8px 0;
+      color: var(--ink);
+    }
+    .output { border-left-color: var(--accent); }
+
+    .muted { color: var(--muted); }
+    .ok { color: var(--ok); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
+    .bad { color: var(--bad); font-weight: 700; }
+
+    .artifact {
+      padding: 16px;
+      margin: 14px 0;
+      background: #fffcf4;
+    }
+
+    .small { font-size: 0.92rem; }
+
+    @media (max-width: 840px) {
+      header, .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <section class="hero">
+        <p class="tag">Development Log</p>
+        <h1>Replication Manager</h1>
+        <p>This document records the full development process of the <code>replication-manager</code> framework across two AI-assisted sessions: initial scaffolding with Codex, then feature development and testing with Claude Code.</p>
+      </section>
+      <aside class="meta">
+        <h3>Scope</h3>
+        <p>April 18&ndash;20, 2026</p>
+        <p><strong>Repository:</strong> <a href="https://github.com/ottoxin/replication-manager">github.com/ottoxin/replication-manager</a></p>
+        <p><strong>Test paper:</strong> Hao et al. (2026), <em>Nature</em> 649, 1237&ndash;1243</p>
+        <p><strong>Tools:</strong> Codex (Session 1), Claude Code (Session 2)</p>
+      </aside>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h3>Goal</h3>
+        <p>Build a pre-submission replication checker: ingest a paper and replication package, run code in a clean sandbox, compare outputs, and generate a report with side-by-side comparison.</p>
+      </article>
+      <article class="card">
+        <h3>Design</h3>
+        <p>Compact agentic workflow inspired by Xu &amp; Yang's AI-reproducibility paper. Three agents (Coordinator, Executor, Reporter + Analyst) with deterministic skills. No live LLM in the pipeline.</p>
+      </article>
+      <article class="card">
+        <h3>Final Result</h3>
+        <p>Nature paper replication: 131/187 substantive claims matched (70%), 47 coincidental filtered, adjusted verdict <span class="ok">"largely reproducible"</span>. 14 figures with HTML-downloaded images.</p>
+      </article>
+    </section>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <h2>Session 1: Initial Framework (Codex)</h2>
+    <p class="session-label codex-label">Codex &middot; April 18&ndash;19</p>
+    <!-- ════════════════════════════════════════════════════════════════ -->
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Initial repo build</span></div>
+      <div class="prompt">
+        <p>Provided the AI reproducibility paper URL and an existing GitHub repo, asking to build a replication framework with zip input support and number/figure/table comparison.</p>
+      </div>
+      <pre>build a github repo for this replication framework. mainly do not need to be
+this complicated but also keep the main features. the report should a comparison
+between the stuff in the paper (numbers/figures/tables) with the replicated ones.
+can have zip file as input.</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Codex</span><span class="muted">Scaffold created</span></div>
+      <div class="output">
+        <p>Created the full repo scaffold: paper parsing, package ingestion, execution, comparison, reporting, pipeline orchestration, CLI, models, utils, and test fixtures.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Sandbox requirement</span></div>
+      <div class="prompt">
+        <p>Clarified the main use case is pre-submission checking. The environment should be sandboxed before installing packages.</p>
+      </div>
+      <pre>the goal was mainly use this for pre journal submission. add i think you need to
+make sure create a sandbox to clear the environment then installed the needed package</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Codex</span><span class="muted">Sandbox added</span></div>
+      <div class="output">
+        <p>Added sandbox execution: copies package to <code>sandbox/project</code>, creates isolated HOME and temp, builds Python venv, bootstraps dependencies. Options: <code>--no-sandbox</code>, <code>--no-install</code>.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Agentic design</span></div>
+      <div class="prompt">
+        <p>Asked for more agentic structure like the paper, but compact given token constraints.</p>
+      </div>
+      <pre>i think the idea is to use more skills? or agentic? like what the yiqing'
+paper indicates. ok let us do this. can be less agents just given the token issues</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Codex</span><span class="muted">Workflow refactored</span></div>
+      <div class="output">
+        <p>Refactored into a compact agentic workflow with three agents (Coordinator, Executor, Reporter) and eight deterministic skills. Added shared state, skill trace, and diagnostics.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Real paper testing</span></div>
+      <div class="prompt">
+        <p>Asked to test against the Cambridge "From Faces to Politics" paper. The pipeline exposed multiple bugs.</p>
+      </div>
+      <pre>also the current pipeline is not really working. see the generated file.
+let us try this paper: [Cambridge Political Analysis URL]</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Codex</span><span class="muted">Bug fixes</span></div>
+      <div class="output">
+        <p>Fixed Code Ocean working directory, mount path emulation, helper-script-as-entrypoint, static input files counted as reproduced outputs, noisy PDF numeric extraction, and reference page numbers misclassified as claims. Claim set dropped from 78 to 56.</p>
+      </div>
+      <pre>Final result on Faces-to-Politics paper:
+Verdict: fully reproducible
+Numeric: 100.0% (56/56), Tables: 100.0% (2/2), Figures: 66.7% (2/3)</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Codex</span><span class="muted">Pushed</span></div>
+      <div class="output">
+        <p>Pushed three commits to <code>origin/main</code>:</p>
+      </div>
+      <pre>a4aface Initial pre-submission replication framework
+d29e605 Fix paper claim extraction and code ocean execution
+976df81 Filter reference and metadata noise from paper claims</pre>
+    </article>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <h2>Session 2: Feature Development &amp; Nature Paper Testing (Claude Code)</h2>
+    <p class="session-label claude-label">Claude Code &middot; April 19&ndash;20</p>
+    <!-- ════════════════════════════════════════════════════════════════ -->
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Output format &amp; AI analysis</span></div>
+      <div class="prompt">
+        <p>Clarified output should be HTML+PDF only (not LaTeX/Word). Figures should be side-by-side comparison. Requested an AI analysis agent for post-comparison filtering.</p>
+      </div>
+      <pre>i did meant the output to be different format but more from the input side.
+output can just be html and pdf version. where they should have the pair
+comparison especially the figures. ideally side to side. also should you have
+an ai agent to do the filtering after screening and obtaining all the numbers
+and figures.</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Multi-format cleanup + analysis module</span></div>
+      <div class="output">
+        <p>Removed LaTeX/Word export code. Simplified to HTML+PDF output. Created <code>analysis.py</code> with heuristic claim classification (coincidental vs substantive). Added <code>AnalysisResult</code> model and Analyst agent with <code>analyze_results</code> skill in the workflow.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Figure quality &amp; skill clarification</span></div>
+      <div class="prompt">
+        <p>Noted figure extraction was poor (PDF page renders). Asked to look at HTML for better images. Clarified the AI analysis agent should be a Claude Code skill, not an API call.</p>
+      </div>
+      <pre>ok i think the figure extraction is not good. look from the html maybe.
+and i did not see any Replicated figure in the html. also what i meant by
+AI analysis agent is like you have a create a skill or something so you
+can run not api</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">HTML figure download + Claude skills</span></div>
+      <div class="output">
+        <p>Rewrote figure extraction to download individual images from Nature/Springer CDN instead of rendering PDF pages. Added DOI-based filtering to avoid thumbnails from other articles. Created <code>.claude/skills/analyze-replication/SKILL.md</code> and updated <code>.claude/skills/replicate-paper/SKILL.md</code>.</p>
+      </div>
+      <pre>Result: 38 figure images extracted for side-by-side comparison
+14 main + extended data figures with high-quality CDN images</pre>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Missing replicated figures</span></div>
+      <div class="prompt">
+        <p>Asked why there were no replicated figures at all on the artifact side.</p>
+      </div>
+      <pre>why there are no Replicated (Artifact) for figure? not even single one?</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Source data mapping</span></div>
+      <div class="output">
+        <p>Added <code>_find_figure_source_data()</code> to map SourceData CSV/XLSX files to figure numbers. Initially showed CSV previews on the replicated side. 11 of 14 figures had matching source data.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">No CSV preview, screening gap</span></div>
+      <div class="prompt">
+        <p>Said CSV previews were not useful. Noted the package had no visualization scripts and this should be reported in screening.</p>
+      </div>
+      <pre>i do not want the csv preview. do not they have codes for visualization?</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Investigation</span></div>
+      <div class="output">
+        <p>Inspected the GitHub repo and Nature page. Confirmed all 44 scripts are data processing (<code>Calculate_*</code>, <code>Get_*</code>, <code>Classify_*</code>). Despite listing matplotlib and seaborn in requirements, the authors did not include any plotting code. Only source data CSVs are provided.</p>
+      </div>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Screening should report this</span></div>
+      <div class="prompt">
+        <p>Confirmed no need for CSV preview, but screening should summarize visualization script availability.</p>
+      </div>
+      <pre>it is fine. no need to preview csv on the side then. but in the screening
+stage. you should have a summary on this too</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Visualization detection in screening</span></div>
+      <div class="output">
+        <p>Added <code>VISUALIZATION_HINTS</code> pattern set and <code>_find_visualization_scripts()</code> / <code>_count_source_data()</code> helpers. Added <code>has_visualization_scripts</code>, <code>visualization_scripts</code>, <code>has_source_data</code>, <code>source_data_files</code> to <code>ScreeningReport</code>. Updated recommendations to flag missing visualization code.</p>
+      </div>
+      <pre>Screening report now includes:
+  has_visualization_scripts: false
+  visualization_scripts: []
+  has_source_data: true
+  source_data_files: 114
+
+Recommendations:
+  "No visualization/plotting scripts found in the package. The paper has
+   14 figure(s) but the package contains only data-processing code."
+  "Source data files found (114 file(s)) but no visualization scripts
+   to render them into figures."</pre>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Final organization</span></div>
+      <div class="prompt">
+        <p>Asked to reorganize files, update README with flowchart, do a final Nature run, update conversation export, and push.</p>
+      </div>
+      <pre>move the run files under the replication manager. update the readme. make a
+flowchart figure. then have a final run on the nature paper. add our conversations
+to conversation_export.html. push the necessary files to the repo.</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Final assembly</span></div>
+      <div class="output">
+        <p>Moved AI-Impacts-Science to <code>examples/nature-ai-impacts/</code>. Created SVG flowchart at <code>docs/flowchart.svg</code>. Rewrote README with architecture tables, feature descriptions, and example usage. Ran final Nature replication under <code>runs/nature-final/</code>. Updated this conversation export. Pushed to GitHub.</p>
+      </div>
+      <pre>Final Nature run:
+Verdict: largely reproducible
+  (raw: partially reproducible, adjusted after filtering 47 coincidental claims)
+Substantive match rate: 70.0% (131/187)
+38 figure images extracted, 14 figures with published images
+11 figures with source data, 0 visualization scripts in package</pre>
+    </article>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <h2>Implementation Summary</h2>
+    <!-- ════════════════════════════════════════════════════════════════ -->
+
+    <table>
+      <thead>
+        <tr><th>Module</th><th>Session</th><th>Key Changes</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>workflow.py</code></td>
+          <td>Both</td>
+          <td>Compact agent loop with shared state. Added Analyst agent, <code>analyze_results</code> skill, analysis propagation to reports and summary.</td>
+        </tr>
+        <tr>
+          <td><code>screening.py</code></td>
+          <td>Codex + Claude</td>
+          <td>Script classification (GPU/heavy/lightweight). Added visualization script detection, source data counting, and updated recommendations.</td>
+        </tr>
+        <tr>
+          <td><code>analysis.py</code></td>
+          <td>Claude</td>
+          <td>New module. Heuristic claim classification using context hints. Adjusted verdict computation. Figure feasibility assessment.</td>
+        </tr>
+        <tr>
+          <td><code>reporting.py</code></td>
+          <td>Both</td>
+          <td>Removed LaTeX/Word exports. Added HTML figure download from Nature CDN with DOI filtering. Side-by-side figure comparison. Source data awareness. Adjusted verdict display.</td>
+        </tr>
+        <tr>
+          <td><code>paper.py</code></td>
+          <td>Codex</td>
+          <td>PDF/HTML/text parsing. Filtered reference metadata, headings, version strings from numeric claims.</td>
+        </tr>
+        <tr>
+          <td><code>sandbox.py</code></td>
+          <td>Codex + Claude</td>
+          <td>Isolated execution with venv, R libs, conda. Code Ocean mount shimming. Fixed bytes/str bug in TimeoutExpired handler.</td>
+        </tr>
+        <tr>
+          <td><code>compare.py</code></td>
+          <td>Codex</td>
+          <td>Precision-aware numeric matching. Only considers output-like artifacts. Verdicts gated on execution success.</td>
+        </tr>
+        <tr>
+          <td><code>models.py</code></td>
+          <td>Claude</td>
+          <td>Added <code>AnalysisResult</code> dataclass and <code>analysis</code> field to <code>RunResult</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <h2>Validation</h2>
+    <!-- ════════════════════════════════════════════════════════════════ -->
+
+    <div class="artifact">
+      <h3>Test Suite</h3>
+      <pre>python -m pytest tests/ -v
+46 passed, 1 failed (pre-existing Code Ocean mount path issue)</pre>
+      <p class="ok">All framework tests pass. The one failure is a Code Ocean capsule test that requires absolute container paths.</p>
+    </div>
+
+    <div class="artifact">
+      <h3>Nature Paper Final Run</h3>
+      <pre>replication-manager run \
+  --paper examples/nature-ai-impacts/paper.pdf \
+  --package examples/nature-ai-impacts/ \
+  --output-dir runs/nature-final \
+  --skip-heavy
+
+Verdict: largely reproducible
+Screening: 44 scripts (13 runnable, 6 GPU, 25 heavy), 0 viz scripts, 114 source data files
+Execution: 13 lightweight scripts ran (all failed — require upstream intermediate data)
+Comparison: 234 claims extracted, 47 coincidental filtered
+Substantive match rate: 70.0% (131/187)
+Figures: 38 images downloaded, 14 with published images, 11 with source data</pre>
+    </div>
+
+    <div class="artifact">
+      <h3>Git History</h3>
+      <pre>Session 1 (Codex):
+  a4aface Initial pre-submission replication framework
+  d29e605 Fix paper claim extraction and code ocean execution
+  976df81 Filter reference and metadata noise from paper claims
+
+Session 1.5 (Codex):
+  10c34ad Add screening system, --skip-heavy flag, and Claude Code skills
+  af360b1 Add side-by-side comparison views for figures, tables, and numerics
+  9641126 Fix verdict logic, figure/table extraction, and pdfplumber filtering
+  d6a7c4f Generalize figure extraction and add HTML image download
+
+Session 2 (Claude Code):
+  [latest] Add analysis module, viz detection, Nature example, flowchart, updated README</pre>
+    </div>
+
+    <h2>Key Design Decisions</h2>
+    <ul>
+      <li><strong>Heuristic analysis over LLM API calls.</strong> The <code>analysis.py</code> module uses pattern-based classification instead of calling an LLM API. The Claude Code skill (<code>/analyze-replication</code>) provides deeper AI reasoning when invoked manually.</li>
+      <li><strong>HTML figure download over PDF rendering.</strong> Individual figures from Nature/Springer CDN are higher quality than PDF page renders. DOI-based filtering prevents matching thumbnails from sidebar articles.</li>
+      <li><strong>Adjusted verdicts.</strong> Raw match rates are inflated by coincidental matches (citations, versions, equation numbers). The adjusted rate counts only substantive research findings.</li>
+      <li><strong>Screening reports visualization gaps.</strong> When a package has source data but no plotting scripts, the screening report explicitly flags this — the authors provided data but not the code to reproduce their figures.</li>
+      <li><strong>No CSV preview in reports.</strong> Source data files are noted on the replicated side, but raw CSV content is not rendered. The information that matters is whether source data exists, not its contents.</li>
+    </ul>
+  </main>
+</body>
+</html>
