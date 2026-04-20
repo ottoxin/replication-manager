@@ -8,14 +8,16 @@ dist/
 .coverage
 htmlcov/
 
-# Run outputs: exclude heavy dirs, keep final reports and key artifacts
-runs/*/sandbox/
-runs/*/workspace/
-runs/*/inputs/
-runs/*/logs/
-runs/*/artifacts/package_manifest.json
-runs/*/artifacts/raw_package_manifest.json
-runs/*/artifacts/execution_manifest.json
+# Runs: ignore everything, then whitelist nature-final outputs
+runs/*
+!runs/nature-final/
+runs/nature-final/sandbox/
+runs/nature-final/workspace/
+runs/nature-final/inputs/
+runs/nature-final/logs/
+runs/nature-final/artifacts/package_manifest.json
+runs/nature-final/artifacts/raw_package_manifest.json
+runs/nature-final/artifacts/execution_manifest.json
 
 # Example package: exclude large data dirs
 examples/*/source_data/
