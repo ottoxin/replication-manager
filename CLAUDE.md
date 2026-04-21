@@ -29,7 +29,9 @@ replication-manager run --paper paper.pdf --package package/ --output-dir runs/t
 - `paper.py` — PDF/HTML/text parsing with pdfplumber structured table extraction
 - `compare.py` — precision-aware numeric matching + optional image hashing for figures
 - `sandbox.py` — isolated execution with Python venv, R libs, conda env support
+- `figgen.py` — figure replication from source data (xlsx/csv), auto plot type inference, per-panel rendering
 
 ## Skills (in .claude/skills/)
 - `replicate-paper` — end-to-end replication with screening
 - `inspect-replication` — quick feasibility check without execution
+- `replicate-figures` — replicate figures from source data, split multi-panel figures
