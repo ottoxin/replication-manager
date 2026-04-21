@@ -185,7 +185,7 @@
         <p>April 18&ndash;20, 2026</p>
         <p><strong>Repository:</strong> <a href="https://github.com/ottoxin/replication-manager">github.com/ottoxin/replication-manager</a></p>
         <p><strong>Test paper:</strong> Hao et al. (2026), <em>Nature</em> 649, 1237&ndash;1243</p>
-        <p><strong>Tools:</strong> Codex (Session 1), Claude Code (Session 2)</p>
+        <p><strong>Tools:</strong> Codex (Session 1), Claude Code (Sessions 2&ndash;3)</p>
       </aside>
     </header>
 
@@ -200,7 +200,7 @@
       </article>
       <article class="card">
         <h3>Final Result</h3>
-        <p>Nature paper replication: 131/187 substantive claims matched (70%), 47 coincidental filtered, adjusted verdict <span class="ok">"largely reproducible"</span>. 14 figures with HTML-downloaded images.</p>
+        <p>Nature paper replication: 134/179 substantive claims matched (75%), 26 coincidental filtered, adjusted verdict <span class="ok">"largely reproducible"</span>. 45 figures replicated (207 panels) from source data.</p>
       </article>
     </section>
 
@@ -412,6 +412,101 @@ Substantive match rate: 70.0% (131/187)
 11 figures with source data, 0 visualization scripts in package</pre>
     </article>
 
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Reference noise in report</span></div>
+      <div class="prompt">
+        <p>Noticed many random numbers from the references/bibliography still appearing as numeric claims in the report.</p>
+      </div>
+      <pre>i am reading the report. i think there are still many random numbers.
+Some are from the references list</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Bibliography filtering overhaul</span></div>
+      <div class="output">
+        <p>Two-pronged fix. In <code>paper.py</code>: replaced simple <code>find_references_start()</code> cutoff with <code>find_bibliography_ranges()</code> that detects multiple section types (References, Online content, Code availability, Reporting summary, numbered reference patterns) and skips those line ranges while preserving Methods and Extended Data sections.</p>
+        <p>In <code>analysis.py</code>: fixed critical bug where <code>_is_coincidental()</code> returned <code>False</code> early for non-integer values, so version numbers like 3.11 were never caught. Added <code>BIBLIOGRAPHY_CONTEXT_HINTS</code> for conference proceedings and page-range pattern detection.</p>
+      </div>
+      <pre>Before: 234 claims, 47 coincidental, 131/187 matched (70%)
+After:  205 claims, 26 coincidental, 134/179 matched (75%)
+
+Key fixes:
+  - Nature PDFs use "Online content" not "References" heading
+  - Float version numbers (3.11, 1.15) now caught before is_int check
+  - Conference proceedings ("Proc. 57th", "CVPR'16") filtered
+  - Page ranges like "785–794 (2024)" detected</pre>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Script errors &amp; visualization</span></div>
+      <div class="prompt">
+        <p>Asked about the 13 failed scripts and whether they contain visualization code.</p>
+      </div>
+      <pre>there are so many errors. inspect the errors. and are there
+visualizations in these code?</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Root cause: missing intermediate data</span></div>
+      <div class="output">
+        <p>All 13 scripts fail with <code>FileNotFoundError: ../result_alltime/</code> &mdash; they need upstream pickle files from the 31 skipped heavy-compute scripts. None contain visualization code; all are data processing (<code>Calculate_*</code>, <code>Get_*</code>, <code>Classify_*</code>). The scripts use <code>open(..., 'rb')</code> for pickle files, which the data-availability checker doesn&rsquo;t catch (it looks for <code>read_csv</code>/<code>read_parquet</code> patterns).</p>
+      </div>
+    </article>
+
+    <!-- ════════════════════════════════════════════════════════════════ -->
+    <h2>Session 3: Figure Replication &amp; Report Integration (Claude Code)</h2>
+    <p class="session-label claude-label">Claude Code &middot; April 20</p>
+    <!-- ════════════════════════════════════════════════════════════════ -->
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Git fix + figure replication skill</span></div>
+      <div class="prompt">
+        <p>Asked to fix git credentials using SSH from other repos, create a skill to replicate figures from source data with multi-panel splitting, and push.</p>
+      </div>
+      <pre>use the credential for other git repo. also for the replicated visualization.
+let us create a skill then analyze the figure and try to replication from our end.
+if there is a panel has multiple figure you should split them. when you finish.
+push to git repo</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">figgen module + replicate-figures skill</span></div>
+      <div class="output">
+        <p>Switched git remote from HTTPS to SSH (matching other repos). Created <code>figgen.py</code> module: auto-discovers source data files (prefers xlsx over csv), infers plot types (line, bar, grouped bar, boxplot, error bands), color-codes NonAI/AI series, and renders each panel as a separate PNG. Created <code>/replicate-figures</code> Claude Code skill. Added matplotlib and openpyxl to project dependencies.</p>
+      </div>
+      <pre>Nature paper result:
+  45 figures discovered (Fig 1-4, ExtFig 3-10, Supplementary S1-S37)
+  207 total panels rendered
+  All 45 figures replicated successfully
+  HTML gallery at replicated_figures/replicated_figures.html</pre>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Embed in main report</span></div>
+      <div class="prompt">
+        <p>Asked why the replicated figures were not integrated into the main <code>report.html</code>.</p>
+      </div>
+      <pre>did you add the replicated figures in replication-manager/runs/nature-final/report.html?</pre>
+    </article>
+
+    <article class="turn assistant">
+      <div class="turn-head"><span class="role">Claude Code</span><span class="muted">Report integration</span></div>
+      <div class="output">
+        <p>Added <code>_find_replicated_panels()</code> to <code>reporting.py</code>: discovers rendered PNGs in <code>replicated_figures/fig_*/</code>, base64-encodes them, and passes to the HTML template. Updated the figure comparison section to show replicated panels side-by-side with published figures. Multi-panel figures display in a flex grid.</p>
+      </div>
+      <pre>Result: 11/14 paper figures now show replicated panels in report.html
+  (3 figures without panels: E1, E2, E8 have no source data)
+  Report size: 5.2 MB (self-contained with embedded images)</pre>
+    </article>
+
+    <article class="turn user">
+      <div class="turn-head"><span class="role">User</span><span class="muted">Update conversation log</span></div>
+      <div class="prompt">
+        <p>Asked to update this conversation export with the latest sessions.</p>
+      </div>
+      <pre>update our conversation to replication-manager/docs/conversation_export.html</pre>
+    </article>
+
     <!-- ════════════════════════════════════════════════════════════════ -->
     <h2>Implementation Summary</h2>
     <!-- ════════════════════════════════════════════════════════════════ -->
@@ -437,14 +532,19 @@ Substantive match rate: 70.0% (131/187)
           <td>New module. Heuristic claim classification using context hints. Adjusted verdict computation. Figure feasibility assessment.</td>
         </tr>
         <tr>
+          <td><code>figgen.py</code></td>
+          <td>Claude (S3)</td>
+          <td>New module. Source data discovery (xlsx/csv), plot type inference (line/bar/boxplot/error bands), per-panel rendering with matplotlib. Color-coded NonAI/AI series. HTML gallery generation.</td>
+        </tr>
+        <tr>
           <td><code>reporting.py</code></td>
-          <td>Both</td>
-          <td>Removed LaTeX/Word exports. Added HTML figure download from Nature CDN with DOI filtering. Side-by-side figure comparison. Source data awareness. Adjusted verdict display.</td>
+          <td>All</td>
+          <td>Removed LaTeX/Word exports. HTML figure download from Nature CDN with DOI filtering. Side-by-side figure comparison. Source data awareness. Replicated panel embedding from figgen output.</td>
         </tr>
         <tr>
           <td><code>paper.py</code></td>
-          <td>Codex</td>
-          <td>PDF/HTML/text parsing. Filtered reference metadata, headings, version strings from numeric claims.</td>
+          <td>Codex + Claude (S2)</td>
+          <td>PDF/HTML/text parsing. Filtered reference metadata. Added <code>find_bibliography_ranges()</code> for multi-section skip (Online content, Code availability, numbered references).</td>
         </tr>
         <tr>
           <td><code>sandbox.py</code></td>
@@ -471,8 +571,8 @@ Substantive match rate: 70.0% (131/187)
     <div class="artifact">
       <h3>Test Suite</h3>
       <pre>python -m pytest tests/ -v
-46 passed, 1 failed (pre-existing Code Ocean mount path issue)</pre>
-      <p class="ok">All framework tests pass. The one failure is a Code Ocean capsule test that requires absolute container paths.</p>
+55 passed, 1 failed (pre-existing Code Ocean mount path issue)</pre>
+      <p class="ok">All framework tests pass (including 9 new figgen tests). The one failure is a Code Ocean capsule test that requires absolute container paths.</p>
     </div>
 
     <div class="artifact">
@@ -486,9 +586,10 @@ Substantive match rate: 70.0% (131/187)
 Verdict: largely reproducible
 Screening: 44 scripts (13 runnable, 6 GPU, 25 heavy), 0 viz scripts, 114 source data files
 Execution: 13 lightweight scripts ran (all failed — require upstream intermediate data)
-Comparison: 234 claims extracted, 47 coincidental filtered
-Substantive match rate: 70.0% (131/187)
-Figures: 38 images downloaded, 14 with published images, 11 with source data</pre>
+Comparison: 205 claims extracted, 26 coincidental filtered
+Substantive match rate: 74.9% (134/179)
+Figures: 45 replicated (207 panels), 11/14 paper figures with replicated panels in report
+Published images: 38 downloaded from Nature CDN for side-by-side comparison</pre>
     </div>
 
     <div class="artifact">
@@ -505,7 +606,13 @@ Session 1.5 (Codex):
   d6a7c4f Generalize figure extraction and add HTML image download
 
 Session 2 (Claude Code):
-  [latest] Add analysis module, viz detection, Nature example, flowchart, updated README</pre>
+  1b829f3 Add analysis module, visualization detection, Nature example, and final run
+  4fc2509 Reorganize repo layout and trim README
+  1c2bc70 Fix bibliography and reference noise in paper parsing and analysis
+
+Session 3 (Claude Code):
+  332ee5b Add figure replication module and skill
+  fe29391 Embed replicated figure panels in HTML report</pre>
     </div>
 
     <h2>Key Design Decisions</h2>
@@ -514,7 +621,9 @@ Session 2 (Claude Code):
       <li><strong>HTML figure download over PDF rendering.</strong> Individual figures from Nature/Springer CDN are higher quality than PDF page renders. DOI-based filtering prevents matching thumbnails from sidebar articles.</li>
       <li><strong>Adjusted verdicts.</strong> Raw match rates are inflated by coincidental matches (citations, versions, equation numbers). The adjusted rate counts only substantive research findings.</li>
       <li><strong>Screening reports visualization gaps.</strong> When a package has source data but no plotting scripts, the screening report explicitly flags this — the authors provided data but not the code to reproduce their figures.</li>
-      <li><strong>No CSV preview in reports.</strong> Source data files are noted on the replicated side, but raw CSV content is not rendered. The information that matters is whether source data exists, not its contents.</li>
+      <li><strong>Automated figure replication from source data.</strong> The <code>figgen.py</code> module infers plot types from column headers and data shape rather than requiring manual configuration. Each panel is rendered separately so multi-panel figures (e.g., Fig 1a&ndash;f) produce individual PNGs for side-by-side comparison.</li>
+      <li><strong>xlsx preferred over csv for source data.</strong> When both formats exist (common in Nature packages), xlsx files contain all panels as sheets, while CSVs are one-per-panel. The discovery logic prefers xlsx to get complete figures.</li>
+      <li><strong>Bibliography range detection over line-number cutoff.</strong> Nature PDFs use &ldquo;Online content&rdquo; instead of &ldquo;References&rdquo;, and Methods/Extended Data sections appear after the bibliography. The parser identifies specific section ranges to skip rather than truncating after a fixed line.</li>
     </ul>
   </main>
 </body>
