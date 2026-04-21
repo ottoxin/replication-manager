@@ -136,4 +136,3 @@ python -m pytest tests/ -v
 
 - [Architecture & module map](docs/architecture.md)
 - [System flowchart](docs/flowchart.svg)
-- [Development conversation log](docs/conversation_export.html)
