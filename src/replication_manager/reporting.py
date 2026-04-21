@@ -735,7 +735,14 @@ HTML_TEMPLATE = """
           </div>
           <div class="figure-card">
             <h4>Replicated (Artifact)</h4>
-            {% if match.artifact_path and embed_image(match.artifact_path) %}
+            {% if replicated_panels and fig_key(match.figure_number) in replicated_panels %}
+              <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+              {% for panel_b64 in replicated_panels[fig_key(match.figure_number)] %}
+                <img src="data:image/png;base64,{{ panel_b64.data }}" alt="Panel {{ panel_b64.label }}" style="max-width:{{ '100%' if replicated_panels[fig_key(match.figure_number)]|length == 1 else '48%' }};max-height:300px;">
+              {% endfor %}
+              </div>
+              <small style="color:var(--muted);">{{ replicated_panels[fig_key(match.figure_number)]|length }} panel(s) replicated from source data</small>
+            {% elif match.artifact_path and embed_image(match.artifact_path) %}
               <img src="data:image/{{ image_ext(match.artifact_path) }};base64,{{ embed_image(match.artifact_path) }}" alt="Replicated Figure {{ match.figure_number }}">
             {% elif figure_source_data and fig_key(match.figure_number) in figure_source_data %}
               <div class="no-image" style="padding:12px;">
@@ -917,6 +924,7 @@ def render_reports(
 
     paper_figure_images = _extract_pdf_figures(paper.source, package.root)
     figure_source_data = _find_figure_source_data(package, comparison)
+    replicated_panels = _find_replicated_panels(output_dir)
 
     def fig_key(figure_number: str) -> str:
         """Normalize 'E8', '1 | caption...' etc. to the clean key used in paper_figure_images."""
@@ -949,6 +957,7 @@ def render_reports(
         } if analysis else {},
         "paper_figure_images": paper_figure_images,
         "figure_source_data": figure_source_data,
+        "replicated_panels": replicated_panels,
     }
 
     md_env = Environment(trim_blocks=True, lstrip_blocks=True)
@@ -1198,6 +1207,35 @@ def _curl_image(url: str) -> str:
     except Exception:
         pass
     return ""
+
+
+def _find_replicated_panels(output_dir: Path) -> dict[str, list[dict]]:
+    """Find replicated figure panels in the output directory."""
+    import re
+
+    result: dict[str, list[dict]] = {}
+    fig_dir = output_dir / "replicated_figures"
+    if not fig_dir.is_dir():
+        return result
+
+    for panel_dir in sorted(fig_dir.iterdir()):
+        if not panel_dir.is_dir() or not panel_dir.name.startswith("fig_"):
+            continue
+        fig_num = panel_dir.name[4:]
+        panels = []
+        for png in sorted(panel_dir.glob("*.png")):
+            if png.stat().st_size > 5_000_000:
+                continue
+            try:
+                data = base64.b64encode(png.read_bytes()).decode("ascii")
+                label = png.stem.replace("panel_", "").replace("_", " ")
+                panels.append({"data": data, "label": label})
+            except Exception:
+                continue
+        if panels:
+            result[fig_num] = panels
+
+    return result
 
 
 def generate_suggestions(
