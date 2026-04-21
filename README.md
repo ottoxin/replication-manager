@@ -28,6 +28,57 @@ replication-manager run \
 
 See [docs/architecture.md](docs/architecture.md) for the full module map, workflow details, and screening logic.
 
+## Supported Inputs
+
+### Paper formats
+
+| Format | Extensions | Notes |
+|--------|-----------|-------|
+| PDF | `.pdf` | Primary format. Text + structured tables via pdfplumber |
+| HTML | `.html`, `.htm` | Parsed with built-in HTML stripper |
+| Plain text / Markdown | `.txt`, `.md` | Direct text extraction |
+| URL | `https://...` | Downloaded automatically; fetches article HTML for figure extraction |
+
+### Replication package formats
+
+| Format | Notes |
+|--------|-------|
+| Local directory | Copied into sandbox as-is |
+| ZIP archive | `.zip` — extracted and project root auto-detected |
+| URL | Downloaded first, then treated as ZIP or directory |
+
+### Script languages
+
+| Language | Extensions | Environment |
+|----------|-----------|-------------|
+| Python | `.py` | Sandboxed venv, deps from `requirements.txt` / `pyproject.toml` / `setup.py` |
+| R | `.r` | Isolated R library, deps from `renv.lock` / `install.R` / `packages.R` |
+| Stata | `.do` | Requires `--stata-bin` or `REPLICATION_MANAGER_STATA_BIN` |
+| Shell | `.sh` | Runs in sandbox environment |
+| Conda | — | Detected from `environment.yml` (not auto-provisioned) |
+
+### Source data for figure replication
+
+| Format | Extensions | Notes |
+|--------|-----------|-------|
+| Excel | `.xlsx`, `.xls` | Multi-sheet; each sheet = one panel. Preferred over CSV |
+| CSV | `.csv` | One file per panel. Grouped by figure number from filename |
+
+Files matching `SourceData_Fig*.xlsx`, `SourceData_ExtFig*.xlsx`, or `Supplementary_FigS*.xlsx/csv` are auto-discovered.
+
+### Output
+
+```
+output-dir/
+  report.html                    # Interactive report with side-by-side figure comparison
+  report.md                      # Markdown report
+  summary.json                   # Condensed metrics
+  artifacts/                     # Manifests, comparison data, screening report
+  replicated_figures/            # Per-panel PNGs and HTML gallery
+    fig_1/panel_a.png ...
+    replicated_figures.html
+```
+
 ## Usage
 
 ```bash
@@ -57,29 +108,20 @@ Final run results (`runs/nature-final/`):
 
 | Metric | Value |
 |--------|-------|
-| Numeric claims extracted | 234 |
-| Coincidental filtered | 47 |
-| Substantive matched | 131 / 187 (70%) |
+| Numeric claims extracted | 205 |
+| Coincidental filtered | 26 |
+| Substantive matched | 134 / 179 (75%) |
 | Adjusted verdict | **largely reproducible** |
-| Figures with published images | 14 |
-| Figures with source data | 11 |
+| Figures replicated | 45 (207 panels) |
+| Figures with published images | 14 (11 with replicated panels in report) |
 | Visualization scripts in package | 0 |
-
-## Output
-
-```
-output-dir/
-  report.html           # Interactive report with figure comparison
-  report.md             # Markdown report
-  summary.json          # Condensed metrics
-  artifacts/            # Manifests, comparison data, screening report
-```
 
 ## Claude Code Skills
 
 For interactive use with [Claude Code](https://claude.ai/code):
 
 - `/replicate-paper` — end-to-end replication
+- `/replicate-figures` — replicate figures from source data, split multi-panel figures
 - `/inspect-replication` — feasibility check without execution
 - `/analyze-replication` — post-comparison AI analysis
 
