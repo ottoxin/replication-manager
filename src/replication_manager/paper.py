@@ -5,7 +5,7 @@ import shutil
 import re
 from pathlib import Path
 
-from pypdf import PdfReader
+import pypdfium2 as pdfium
 
 from .models import FigureClaim, NumericClaim, PaperManifest, PaperTable
 from .utils import (
@@ -98,12 +98,23 @@ def extract_text(path: Path) -> str:
             return extract_html_text(raw_text)
         return raw_text
 
-    reader = PdfReader(str(path))
-    pages: list[str] = []
-    for page_number, page in enumerate(reader.pages, start=1):
-        pages.append(f"\n===== PAGE {page_number} =====\n")
-        pages.append(page.extract_text() or "")
-    return "".join(pages)
+    document = pdfium.PdfDocument(str(path))
+    try:
+        pages: list[str] = []
+        for page_number in range(len(document)):
+            pages.append(f"\n===== PAGE {page_number + 1} =====\n")
+            page = document[page_number]
+            try:
+                textpage = page.get_textpage()
+                try:
+                    pages.append(textpage.get_text_range() or "")
+                finally:
+                    textpage.close()
+            finally:
+                page.close()
+        return "".join(pages)
+    finally:
+        document.close()
 
 
 def extract_tables(lines: list[str]) -> list[PaperTable]:
