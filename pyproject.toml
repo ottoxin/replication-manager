@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
   "jinja2>=3.1.0",
-  "pypdf>=4.0.0",
+  "pypdfium2>=4.30.0",
 ]
 
 [project.optional-dependencies]
