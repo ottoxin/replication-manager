@@ -10,7 +10,7 @@ The system runs a deterministic, skill-based pipeline in three phases. Each phas
 
 | Agent | Skill | Purpose |
 |-------|-------|---------|
-| Coordinator | `intake_sources` | Materialize paper (PDF/HTML/text) and package (ZIP/dir/GitHub) |
+| Coordinator | `intake_sources` | Materialize paper (PDF/HTML/Markdown/LaTeX/Word/text) and package (ZIP/dir/GitHub) |
 | Coordinator | `profile_paper` | Extract tables, figures, and numeric claims from the paper |
 | Coordinator | `inspect_package` | Discover scripts, artifacts, and environment files |
 | Coordinator | `screen_package` | Classify scripts (lightweight/GPU/heavy), detect visualization code, check data availability |
@@ -23,6 +23,7 @@ The system runs a deterministic, skill-based pipeline in three phases. Each phas
 |-------|-------|---------|
 | Executor | `diagnose_execution` | Identify environment gaps, blocked stages, and missing dependencies |
 | Reporter | `match_outputs` | Precision-aware numeric matching, table comparison, image hashing for figures |
+| Analyst | `review_figures` | Mandatory local-agent visual review of proposed figure pairs |
 | Analyst | `analyze_results` | Filter coincidental matches (citations, versions), compute adjusted verdict |
 
 ### Phase C: Reporting
@@ -39,8 +40,9 @@ The system runs a deterministic, skill-based pipeline in three phases. Each phas
 | `pipeline.py` | Public API entry point (thin wrapper around `workflow.py`) |
 | `screening.py` | Pre-execution feasibility analysis and script classification |
 | `analysis.py` | Post-comparison heuristic filtering and adjusted verdict computation |
-| `paper.py` | PDF/HTML/text parsing with pdfplumber structured table extraction |
-| `compare.py` | Precision-aware numeric matching and optional image hashing |
+| `paper.py` | PDF/HTML/Markdown/LaTeX/Word/text parsing with pdfplumber structured table extraction |
+| `compare.py` | Precision-aware numeric matching and deterministic candidate pairing for figures |
+| `figure_review.py` | Local-command agent adapter for visual review of proposed figure matches |
 | `sandbox.py` | Isolated execution with Python venv, R libs, conda support |
 | `dag.py` | Script dependency graph for topological execution ordering |
 | `reporting.py` | HTML/Markdown report generation with side-by-side figure comparison |

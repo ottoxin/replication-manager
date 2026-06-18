@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .log import get_logger
 from .models import FigureClaim, PackageManifest, PaperManifest, ScriptRecord
+from .figgen import discover_source_data
 from .utils import read_text_safely
 
 logger = get_logger("screening")
@@ -152,7 +153,7 @@ def classify_script(script: ScriptRecord, root: Path) -> ScriptClassification:
             runnable=False,
         )
 
-    missing = _check_script_data(text, script.language, root)
+    missing = _check_script_data(text, script.language, root, Path(script.path).parent)
     if missing:
         return ScriptClassification(
             path=script.path, language=script.language,
@@ -405,6 +406,10 @@ def _find_visualization_scripts(scripts: list[ScriptRecord]) -> list[str]:
 
 def _count_source_data(package: PackageManifest, root: Path) -> int:
     """Count source data files that correspond to figures (SourceData_Fig*, etc.)."""
+    discovered = discover_source_data(root)
+    if discovered:
+        return sum(len(paths) for paths in discovered.values())
+
     source_re = re.compile(
         r"(?:source_?data|sourcedata)[_/](?:ext)?fig", re.IGNORECASE
     )
@@ -426,7 +431,7 @@ def _has_any(text: str, hints: set[str]) -> bool:
     return any(h in text for h in hints)
 
 
-def _check_script_data(text: str, language: str, root: Path) -> list[str]:
+def _check_script_data(text: str, language: str, root: Path, script_dir: Path | None = None) -> list[str]:
     missing: list[str] = []
     patterns = {
         "python": [r"""(?:read_csv|read_parquet|open)\s*\(\s*['"]([^'"]+)['"]"""],
@@ -440,7 +445,9 @@ def _check_script_data(text: str, language: str, root: Path) -> list[str]:
                 continue
             while candidate.startswith("./"):
                 candidate = candidate[2:]
-            if not (root / candidate).exists():
+            root_candidate = root / candidate
+            script_candidate = (script_dir / candidate) if script_dir is not None else None
+            if not root_candidate.exists() and not (script_candidate and script_candidate.exists()):
                 if candidate not in missing:
                     missing.append(candidate)
     return missing[:10]

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import contextlib
+import io
 from pathlib import Path
 
 from jinja2 import Environment
@@ -30,7 +32,7 @@ MARKDOWN_TEMPLATE = """
 - Verdict: **{{ analysis.adjusted_verdict if analysis else comparison.summary.verdict }}**
 - Numeric match rate: {{ pct(analysis.adjusted_numeric_rate) if analysis else pct(comparison.summary.numeric_match_rate) }} ({% if analysis %}{{ analysis.substantive_matches }}/{{ analysis.substantive_matches + analysis.substantive_missing }} substantive{% else %}{{ comparison.summary.matched_numeric_claims }}/{{ comparison.summary.total_numeric_claims }}{% endif %})
 - Table match rate: {{ pct(comparison.summary.table_match_rate) }} ({{ comparison.summary.matched_tables }}/{{ comparison.summary.total_tables }})
-- Figure match rate: {{ pct(comparison.summary.figure_match_rate) }} ({{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }})
+- Agent-reviewed figure match rate: {{ pct(comparison.summary.figure_match_rate) }} ({{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }})
 {% if analysis %}
 
 ### AI Analysis
@@ -39,7 +41,7 @@ MARKDOWN_TEMPLATE = """
 
 - Substantive matches: {{ analysis.substantive_matches }}
 - Coincidental filtered: {{ analysis.coincidental_matches + analysis.coincidental_missing }}
-- Figures with source data: {{ analysis.reproducible_figures }}/{{ analysis.reproducible_figures + analysis.infeasible_figures }}
+- Agent-matched figures: {{ analysis.reproducible_figures }}/{{ analysis.reproducible_figures + analysis.infeasible_figures }}
 {% endif %}
 
 ## Inputs
@@ -161,10 +163,10 @@ MARKDOWN_TEMPLATE = """
 
 ## Figure Comparison
 
-| Paper figure | Matched artifact | Score |
-| --- | --- | ---: |
+| Paper figure | Candidate artifact | Agent review | Review reason | Candidate score |
+| --- | --- | --- | --- | ---: |
 {% for match in comparison.figure_matches -%}
-| Figure {{ match.figure_number }}: {{ match.caption }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ "%.2f"|format(match.score) }} |
+| Figure {{ match.figure_number }}: {{ match.caption }} | {{ match.artifact_path if match.artifact_path else "—" }} | {{ match.review_status }}{% if match.review_score is not none %} ({{ "%.0f"|format(match.review_score * 100) }}%){% endif %} | {{ match.review_reason if match.review_reason else "—" }} | {{ "%.2f"|format(match.score) }} |
 {% endfor %}
 
 ## Numeric Comparison
@@ -462,7 +464,7 @@ HTML_TEMPLATE = """
           <small>{{ comparison.summary.matched_tables }}/{{ comparison.summary.total_tables }}</small>
         </div>
         <div class="metric">
-          <span>Figure match rate</span>
+          <span>Agent-reviewed figure match rate</span>
           <strong>{{ pct(comparison.summary.figure_match_rate) }}</strong>
           <small>{{ comparison.summary.matched_figures }}/{{ comparison.summary.total_figures }}</small>
         </div>
@@ -481,7 +483,7 @@ HTML_TEMPLATE = """
             <strong>{{ analysis.coincidental_matches + analysis.coincidental_missing }}</strong>
           </div>
           <div class="metric">
-            <span>Figures with source data</span>
+            <span>Agent-matched figures</span>
             <strong>{{ analysis.reproducible_figures }}/{{ analysis.reproducible_figures + analysis.infeasible_figures }}</strong>
           </div>
         </div>
@@ -722,8 +724,15 @@ HTML_TEMPLATE = """
       <div class="figure-entry" data-fig-status="{{ 'matched' if match.matched else 'missing' }}" style="margin-bottom: 16px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
           <strong>Figure {{ match.figure_number }}: {{ match.caption[:120] }}</strong>
-          <span class="{{ 'matched' if match.matched else 'missing' }}">{{ 'matched' if match.matched else 'missing' }} ({{ "%.2f"|format(match.score) }})</span>
+          <span class="{{ 'matched' if match.matched else 'missing' }}">
+            {{ match.review_status.replace('_', ' ') }}
+            {% if match.review_score is not none %}({{ "%.0f"|format(match.review_score * 100) }}%){% endif %}
+          </span>
         </div>
+        <p style="margin:0 0 8px 0;color:var(--muted);font-size:0.85rem;">
+          Candidate score: {{ "%.2f"|format(match.score) }}.
+          Agent review: {{ match.review_reason if match.review_reason else "No review reason recorded." }}
+        </p>
         <div class="figure-pair">
           <div class="figure-card">
             <h4>Published (Paper)</h4>
@@ -977,13 +986,15 @@ def render_reports(
 
 def _export_pdf(html_path: Path, pdf_path: Path) -> None:
     try:
-        from weasyprint import HTML
-        HTML(filename=str(html_path)).write_pdf(str(pdf_path))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            from weasyprint import HTML
+            HTML(filename=str(html_path)).write_pdf(str(pdf_path))
         logger.info("Exported PDF report: %s", pdf_path.name)
     except ImportError:
         logger.debug("weasyprint not installed; skipping PDF export")
     except Exception as exc:
-        logger.warning("PDF export failed: %s", exc)
+        logger.warning("PDF export skipped because WeasyPrint is not fully available.")
+        logger.debug("WeasyPrint PDF export error: %s", exc)
 
 
 def _find_figure_source_data(

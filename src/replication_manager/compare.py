@@ -38,6 +38,7 @@ OUTPUT_DIR_HINTS = {
     "tables",
     "figure",
     "figures",
+    "replicated_figures",
 }
 INPUT_DIR_HINTS = {
     ".codeocean",
@@ -82,7 +83,16 @@ def compare_manifests(
     figure_rate = rate(sum(item.matched for item in figure_matches), len(figure_matches))
 
     summary = ComparisonSummary(
-        verdict=verdict_from_rates(numeric_rate, table_rate, figure_rate, execution_records, package),
+        verdict=verdict_from_rates(
+            numeric_rate,
+            table_rate,
+            figure_rate,
+            execution_records,
+            package,
+            len(numeric_matches),
+            len(table_matches),
+            len(figure_matches),
+        ),
         numeric_match_rate=numeric_rate,
         table_match_rate=table_rate,
         figure_match_rate=figure_rate,
@@ -236,9 +246,6 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
         )
         if matched and best_path:
             used_paths.add(best_path)
-        img_sim = None
-        if matched and best_path and best_path in hash_cache:
-            img_sim = 1.0
         figure_matches.append(
             FigureMatch(
                 figure_number=figure.number,
@@ -246,7 +253,7 @@ def compare_figures(paper: PaperManifest, package: PackageManifest) -> list[Figu
                 matched=matched,
                 artifact_path=best_path if matched else None,
                 score=round(best_score, 4),
-                image_similarity=img_sim,
+                image_similarity=None,
             )
         )
     return figure_matches
@@ -363,6 +370,9 @@ def verdict_from_rates(
     figure_rate: float,
     execution_records: list[ExecutionRecord] | None,
     package: PackageManifest,
+    total_numeric: int = 0,
+    total_tables: int = 0,
+    total_figures: int = 0,
 ) -> str:
     has_source_data_matches = numeric_rate > 0 or table_rate > 0 or figure_rate > 0
     if execution_records is not None and package.scripts:
@@ -370,13 +380,31 @@ def verdict_from_rates(
         if success_count == 0 and not has_source_data_matches:
             return "not reproducible"
 
-    combined = 0.6 * numeric_rate + 0.3 * table_rate + 0.1 * figure_rate
+    weighted_rates: list[tuple[float, float]] = []
+    if total_numeric > 0:
+        weighted_rates.append((0.6, numeric_rate))
+    if total_tables > 0:
+        weighted_rates.append((0.3, table_rate))
+    if total_figures > 0:
+        weighted_rates.append((0.1, figure_rate))
+    if not weighted_rates:
+        return "not reproducible"
+
+    total_weight = sum(weight for weight, _ in weighted_rates)
+    combined = sum(weight * value for weight, value in weighted_rates) / total_weight
 
     if execution_records is not None and package.scripts:
         success_count = sum(record.status == "success" for record in execution_records)
         total_scripts = len([r for r in execution_records if r.status != "skipped"])
         execution_rate = success_count / max(total_scripts, 1)
         combined = 0.5 * combined + 0.5 * execution_rate if total_scripts > 0 else combined
+
+    if total_numeric == 0:
+        if combined >= 0.9:
+            return "largely reproducible"
+        if combined >= 0.4:
+            return "partially reproducible"
+        return "not reproducible"
 
     if combined >= 0.9 and numeric_rate >= 0.85:
         return "fully reproducible"

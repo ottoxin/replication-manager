@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import zipfile
 import json
+import sys
 from pathlib import Path
 
 from replication_manager.compare import compare_manifests
@@ -15,6 +16,27 @@ from replication_manager.runner import execute_scripts
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def write_fake_figure_agent(directory: Path, status: str = "matched", score: float = 1.0) -> str:
+    script = directory / "fake_figure_agent.py"
+    script.write_text(
+        "\n".join(
+            [
+                "import json",
+                "import sys",
+                "payload = json.loads(sys.stdin.read() or '{}')",
+                "json.dump({",
+                f"    'status': {status!r},",
+                f"    'score': {score!r},",
+                "    'reason': 'Fake local agent reviewed the figure pair.',",
+                "    'artifact_path': payload.get('artifact_path'),",
+                "}, sys.stdout)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return f"{sys.executable} {script}"
 
 
 class PaperParsingTests(unittest.TestCase):
@@ -194,6 +216,7 @@ class PipelineTests(unittest.TestCase):
                 output_dir=temp_path / "run",
                 execute=True,
                 timeout_seconds=60,
+                figure_agent_command=write_fake_figure_agent(temp_path),
             )
 
             self.assertTrue(result.report_markdown.exists())
@@ -218,6 +241,7 @@ class PipelineTests(unittest.TestCase):
                 "execute_package",
                 "diagnose_execution",
                 "match_outputs",
+                "review_figures",
                 "analyze_results",
                 "write_report",
             ])
@@ -402,6 +426,7 @@ class PipelineTests(unittest.TestCase):
                 output_dir=temp_path / "run",
                 execute=True,
                 timeout_seconds=60,
+                figure_agent_command=write_fake_figure_agent(temp_path),
             )
 
             self.assertEqual(len(result.execution_records), 1)
@@ -411,6 +436,78 @@ class PipelineTests(unittest.TestCase):
             self.assertTrue(any("Code Ocean-style package" in note for note in result.sandbox_manifest.notes))
             matched_paths = [match.artifact_path for match in result.comparison.numeric_matches if match.matched]
             self.assertTrue(all(path and ("/results/" in path or "/03_output/" in path) for path in matched_paths))
+
+    def test_pipeline_renders_source_data_figures_into_report_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            paper_path = temp_path / "paper.txt"
+            paper_path.write_text(
+                "\n".join(
+                    [
+                        "Source Data Replication Paper",
+                        "",
+                        "Figure 1. Coefficient Plot",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            package_root = temp_path / "Replication"
+            source_data = package_root / "source_data"
+            source_data.mkdir(parents=True)
+            rows = ["x,y"] + [f"{index},{index * 2}" for index in range(15)]
+            (source_data / "SourceData_Fig1__a.csv").write_text("\n".join(rows), encoding="utf-8")
+
+            result = run_pipeline(
+                paper_source=str(paper_path),
+                package_source=str(package_root),
+                output_dir=temp_path / "run",
+                execute=True,
+                sandbox=False,
+                install_dependencies=False,
+                timeout_seconds=30,
+                figure_agent_command=write_fake_figure_agent(temp_path),
+            )
+
+            self.assertIn("replicate_source_figures", [skill.name for skill in result.skill_trace])
+            self.assertIn("review_figures", [skill.name for skill in result.skill_trace])
+            panel_path = temp_path / "run" / "replicated_figures" / "fig_1" / "panel_a.png"
+            self.assertTrue(panel_path.exists())
+            self.assertTrue((temp_path / "run" / "replicated_figures" / "replicated_figures.html").exists())
+            self.assertEqual(result.comparison.summary.figure_match_rate, 1.0)
+            self.assertEqual(result.comparison.summary.verdict, "largely reproducible")
+            self.assertEqual(result.analysis.adjusted_verdict, "largely reproducible")
+            self.assertEqual(Path(result.comparison.figure_matches[0].artifact_path).resolve(), panel_path.resolve())
+            self.assertEqual(result.comparison.figure_matches[0].review_status, "matched")
+
+    def test_pipeline_requires_agent_review_for_figure_match_rate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            paper_path = temp_path / "paper.txt"
+            paper_path.write_text("Source Data Paper\n\nFigure 1. Coefficient Plot\n", encoding="utf-8")
+
+            package_root = temp_path / "Replication"
+            source_data = package_root / "source_data"
+            source_data.mkdir(parents=True)
+            rows = ["x,y"] + [f"{index},{index}" for index in range(15)]
+            (source_data / "SourceData_Fig1__a.csv").write_text("\n".join(rows), encoding="utf-8")
+
+            result = run_pipeline(
+                paper_source=str(paper_path),
+                package_source=str(package_root),
+                output_dir=temp_path / "run",
+                execute=True,
+                sandbox=False,
+                install_dependencies=False,
+                timeout_seconds=30,
+            )
+
+            self.assertEqual(result.comparison.summary.figure_match_rate, 0.0)
+            self.assertEqual(result.comparison.summary.verdict, "not reproducible")
+            self.assertEqual(result.analysis.adjusted_verdict, "not reproducible")
+            self.assertEqual(result.comparison.figure_matches[0].review_status, "cannot_assess")
+            summary = json.loads(result.summary_json.read_text(encoding="utf-8"))
+            self.assertEqual(summary["figure_review_counts"]["cannot_assess"], 1)
 
 
 class ComparisonTests(unittest.TestCase):

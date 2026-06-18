@@ -24,6 +24,16 @@ def build_parser() -> argparse.ArgumentParser:
                             help="Skip GPU and heavy-compute scripts; replicate from intermediate results only.")
     run_parser.add_argument("--timeout-seconds", type=int, default=600, help="Per-script timeout.")
     run_parser.add_argument("--stata-bin", default=None, help="Stata binary path for .do execution.")
+    run_parser.add_argument(
+        "--figure-agent-command",
+        default=None,
+        help=(
+            "Local command used to agent-review proposed figure matches. "
+            "Receives JSON on stdin and returns JSON on stdout. If omitted, "
+            "REPLICATION_MANAGER_FIGURE_AGENT_COMMAND is used; if neither is set, "
+            "figures are marked cannot_assess."
+        ),
+    )
     run_parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                             help="Logging verbosity.")
     return parser
@@ -45,6 +55,7 @@ def main() -> None:
             timeout_seconds=args.timeout_seconds,
             stata_bin=args.stata_bin,
             skip_heavy=args.skip_heavy,
+            figure_agent_command=args.figure_agent_command,
         )
         summary = result.comparison.summary
         verdict = result.analysis.adjusted_verdict if result.analysis else summary.verdict
@@ -60,14 +71,30 @@ def main() -> None:
                 "Match rates: "
                 f"numbers={result.analysis.adjusted_numeric_rate:.1%} (substantive), "
                 f"tables={summary.table_match_rate:.1%}, "
-                f"figures={summary.figure_match_rate:.1%}"
+                f"figures={summary.figure_match_rate:.1%} (agent-reviewed)"
             )
         else:
             print(
                 "Match rates: "
                 f"numbers={summary.numeric_match_rate:.1%}, "
                 f"tables={summary.table_match_rate:.1%}, "
-                f"figures={summary.figure_match_rate:.1%}"
+                f"figures={summary.figure_match_rate:.1%} (agent-reviewed)"
+            )
+        if summary.total_figures:
+            counts = {
+                "matched": 0,
+                "partially_matched": 0,
+                "mismatched": 0,
+                "cannot_assess": 0,
+            }
+            for match in result.comparison.figure_matches:
+                counts[match.review_status] = counts.get(match.review_status, 0) + 1
+            print(
+                "Figure reviews: "
+                f"matched={counts.get('matched', 0)}, "
+                f"partial={counts.get('partially_matched', 0)}, "
+                f"mismatched={counts.get('mismatched', 0)}, "
+                f"cannot_assess={counts.get('cannot_assess', 0)}"
             )
         print(f"Markdown report: {result.report_markdown}")
         print(f"HTML report: {result.report_html}")

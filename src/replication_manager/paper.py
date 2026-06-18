@@ -4,6 +4,7 @@ from html.parser import HTMLParser
 import importlib.util
 import shutil
 import re
+import subprocess
 from pathlib import Path
 
 import pypdfium2 as pdfium
@@ -102,11 +103,24 @@ def extract_paper_manifest(paper_path: Path) -> PaperManifest:
 
 def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
-    if suffix in {".txt", ".md"}:
+    if suffix == ".txt":
         return read_text_safely(path)
+    if suffix in {".md", ".markdown"}:
+        return extract_markdown_text(read_text_safely(path))
     if suffix in {".html", ".htm"}:
         return extract_html_text(read_text_safely(path))
+    if suffix in {".tex", ".latex"}:
+        return extract_latex_text(read_text_safely(path))
+    if suffix in {".docx", ".docm"}:
+        return extract_docx_text(path)
+    if suffix == ".doc":
+        return extract_legacy_word_text(path)
     if suffix != ".pdf":
+        if looks_like_binary_document(path):
+            raise ValueError(
+                f"Unsupported binary paper format `{suffix or path.name}`. "
+                "Use PDF, HTML, Markdown, LaTeX, DOCX, or convert the file to text."
+            )
         raw_text = read_text_safely(path)
         if looks_like_html(raw_text):
             return extract_html_text(raw_text)
@@ -129,6 +143,274 @@ def extract_text(path: Path) -> str:
         return "".join(pages)
     finally:
         document.close()
+
+
+def looks_like_binary_document(path: Path) -> bool:
+    try:
+        prefix = path.read_bytes()[:4096]
+    except OSError:
+        return False
+    if not prefix:
+        return False
+    if prefix.startswith((b"PK\x03\x04", b"%PDF-", b"\xd0\xcf\x11\xe0")):
+        return True
+    return b"\x00" in prefix
+
+
+def extract_markdown_text(raw_markdown: str) -> str:
+    lines: list[str] = []
+    in_fenced_block = False
+    in_front_matter = False
+
+    raw_lines = raw_markdown.splitlines()
+    if raw_lines and raw_lines[0].strip() in {"---", "+++"}:
+        in_front_matter = True
+        front_matter_marker = raw_lines[0].strip()
+    else:
+        front_matter_marker = ""
+
+    for index, line in enumerate(raw_lines):
+        stripped = line.strip()
+        if in_front_matter:
+            if index > 0 and stripped == front_matter_marker:
+                in_front_matter = False
+            continue
+
+        if stripped.startswith(("```", "~~~")):
+            in_fenced_block = not in_fenced_block
+            continue
+        if in_fenced_block:
+            continue
+
+        heading = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s+#+\s*)?$", line)
+        if heading:
+            line = heading.group(1)
+        elif re.match(r"^\s{0,3}(?:[-=]){3,}\s*$", line):
+            continue
+
+        line = re.sub(r"!\[([^\]]*)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", line)
+        line = re.sub(r"^\s{0,3}>\s?", "", line)
+        line = re.sub(r"^\s*[-*+]\s+", "", line)
+        line = re.sub(r"^\s*\d+\.\s+", "", line)
+        line = line.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+        line = line.replace("`", "")
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def extract_latex_text(raw_latex: str) -> str:
+    text = strip_latex_comments(raw_latex).replace(r"\%", "%")
+    lines: list[str] = []
+
+    title = extract_latex_command_argument(text, "title")
+    if title:
+        lines.append(clean_latex_text(title))
+        lines.append("")
+
+    table_counter = 0
+    figure_counter = 0
+
+    def replace_float(match: re.Match[str]) -> str:
+        nonlocal table_counter, figure_counter
+        environment = match.group(1).lower()
+        body = match.group(2)
+        caption = clean_latex_text(extract_latex_command_argument(body, "caption") or "")
+        body_without_caption = remove_latex_command(body, "caption")
+        body_without_caption = remove_latex_command(body_without_caption, "label")
+        cleaned_body = clean_latex_text(body_without_caption)
+
+        if environment.startswith("table"):
+            table_counter += 1
+            caption_line = latex_caption_line("Table", table_counter, caption)
+            return f"\n{caption_line}\n{cleaned_body}\n"
+
+        figure_counter += 1
+        caption_line = latex_caption_line("Figure", figure_counter, caption)
+        return f"\n{caption_line}\n"
+
+    text = re.sub(
+        r"\\begin\{(table\*?|figure\*?)\}(.*?)\\end\{\1\}",
+        replace_float,
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    text = remove_latex_command(text, "title")
+    text = remove_latex_command(text, "author")
+    text = remove_latex_command(text, "date")
+    text = re.sub(r"\\(?:documentclass|usepackage)(?:\[[^\]]*\])?\{[^{}]*\}", "", text)
+    text = re.sub(r"\\(?:begin|end)\{(?:document|abstract|center|tabular\*?|threeparttable)\}", "\n", text)
+    text = re.sub(r"\\(?:toprule|midrule|bottomrule|hline|maketitle|centering|small|footnotesize)\b", "\n", text)
+    text = re.sub(r"\\(?:section|subsection|subsubsection|paragraph)\*?\{([^{}]*)\}", r"\1", text)
+    text = clean_latex_text(text)
+
+    if text:
+        lines.append(text)
+    return "\n".join(lines)
+
+
+def strip_latex_comments(text: str) -> str:
+    stripped_lines: list[str] = []
+    for line in text.splitlines():
+        chars: list[str] = []
+        escaped = False
+        for char in line:
+            if char == "%" and not escaped:
+                break
+            chars.append(char)
+            escaped = char == "\\" and not escaped
+            if char != "\\":
+                escaped = False
+        stripped_lines.append("".join(chars))
+    return "\n".join(stripped_lines)
+
+
+def extract_latex_command_argument(text: str, command: str) -> str | None:
+    match = re.search(rf"\\{re.escape(command)}(?:\[[^\]]*\])?\s*\{{", text, flags=re.IGNORECASE)
+    if not match:
+        return None
+    start = match.end()
+    depth = 1
+    cursor = start
+    while cursor < len(text):
+        char = text[cursor]
+        if char == "\\":
+            cursor += 2
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:cursor]
+        cursor += 1
+    return None
+
+
+def remove_latex_command(text: str, command: str) -> str:
+    pattern = re.compile(rf"\\{re.escape(command)}(?:\[[^\]]*\])?\s*\{{", flags=re.IGNORECASE)
+    cursor = 0
+    parts: list[str] = []
+    while True:
+        match = pattern.search(text, cursor)
+        if not match:
+            parts.append(text[cursor:])
+            break
+        parts.append(text[cursor:match.start()])
+        start = match.end()
+        depth = 1
+        end = start
+        while end < len(text):
+            char = text[end]
+            if char == "\\":
+                end += 2
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end += 1
+                    break
+            end += 1
+        cursor = end
+    return "".join(parts)
+
+
+def latex_caption_line(kind: str, counter: int, caption: str) -> str:
+    if caption.lower().startswith(kind.lower() + " "):
+        return caption
+    if caption:
+        return f"{kind} {counter}. {caption}"
+    return f"{kind} {counter}."
+
+
+def clean_latex_text(text: str) -> str:
+    replacements = {
+        r"~": " ",
+        r"\&": "&",
+        r"\_": "_",
+        r"\#": "#",
+        r"\$": "$",
+        r"\textasciitilde": "~",
+        r"\textless": "<",
+        r"\textgreater": ">",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+
+    text = re.sub(r"\\\\(?:\[[^\]]*\])?", "\n", text)
+    text = text.replace("&", " ")
+    text = re.sub(r"\\(?:emph|textit|textbf|texttt|underline)\{([^{}]*)\}", r"\1", text)
+    previous = None
+    while previous != text:
+        previous = text
+        text = re.sub(r"\\[A-Za-z]+\*?(?:\[[^\]]*\])?\{([^{}]*)\}", r"\1", text)
+    text = re.sub(r"\\[A-Za-z]+\*?(?:\[[^\]]*\])?", " ", text)
+    text = text.replace("{", "").replace("}", "")
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s+", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def extract_docx_text(path: Path) -> str:
+    if not importlib.util.find_spec("docx"):
+        raise RuntimeError("DOCX paper parsing requires python-docx. Install with `pip install -e '.[all]'`.")
+
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    document = Document(str(path))
+    parts: list[str] = []
+
+    for child in document.element.body.iterchildren():
+        if child.tag.endswith("}p"):
+            text = Paragraph(child, document).text.strip()
+            if text:
+                parts.append(text)
+        elif child.tag.endswith("}tbl"):
+            table = Table(child, document)
+            for row in table.rows:
+                cells = [normalize_document_text(cell.text) for cell in row.cells]
+                row_text = "\t".join(cell for cell in cells if cell)
+                if row_text:
+                    parts.append(row_text)
+            parts.append("")
+
+    return "\n".join(parts)
+
+
+def extract_legacy_word_text(path: Path) -> str:
+    converters = []
+    if shutil.which("pandoc"):
+        converters.append(["pandoc", str(path), "-t", "plain"])
+    if shutil.which("textutil"):
+        converters.append(["textutil", "-convert", "txt", "-stdout", str(path)])
+    if shutil.which("antiword"):
+        converters.append(["antiword", str(path)])
+
+    for command in converters:
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode == 0 and completed.stdout.strip():
+            return completed.stdout
+
+    raise RuntimeError(
+        "Legacy .doc paper parsing requires pandoc, textutil, or antiword. "
+        "Convert the paper to .docx or PDF for reliable extraction."
+    )
 
 
 def extract_tables(lines: list[str]) -> list[PaperTable]:

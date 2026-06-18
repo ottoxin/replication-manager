@@ -94,7 +94,9 @@ def _is_coincidental(match: NumericMatch) -> bool:
 
 
 def _assess_figure(fig_number: str, paper: PaperManifest, package: PackageManifest,
-                   execution_records: list[ExecutionRecord] | None) -> dict:
+                   execution_records: list[ExecutionRecord] | None,
+                   review_status: str = "pending",
+                   review_reason: str | None = None) -> dict:
     has_source_data = False
     for artifact in package.table_artifacts:
         label = artifact.label.lower()
@@ -114,14 +116,29 @@ def _assess_figure(fig_number: str, paper: PaperManifest, package: PackageManife
                 elif record.status == "skipped" and "heavy" in (record.message or "").lower():
                     needs_heavy = True
 
-    status = "has_source_data" if has_source_data else "infeasible"
-    if needs_gpu:
+    if review_status == "matched":
+        status = "reproducible"
+        reason = review_reason or "Agent review found the reproduced figure visually equivalent"
+    elif review_status == "partially_matched":
+        status = "partial"
+        reason = review_reason or "Agent review found a partial visual match"
+    elif review_status == "mismatched":
+        status = "mismatched"
+        reason = review_reason or "Agent review found a substantive visual mismatch"
+    elif review_status == "cannot_assess":
+        status = "cannot_assess"
+        reason = review_reason or "Agent review could not assess this figure"
+    elif needs_gpu:
+        status = "infeasible"
         reason = "Requires GPU compute"
     elif needs_heavy:
+        status = "infeasible"
         reason = "Requires heavy compute"
     elif has_source_data:
+        status = "has_source_data"
         reason = "Source data available for verification"
     else:
+        status = "infeasible"
         reason = "No matching artifact or script output"
 
     return {
@@ -129,6 +146,7 @@ def _assess_figure(fig_number: str, paper: PaperManifest, package: PackageManife
         "status": status,
         "has_source_data": has_source_data,
         "needs_gpu": needs_gpu,
+        "review_status": review_status,
         "reason": reason,
     }
 
@@ -173,9 +191,16 @@ def _heuristic_analysis(
     reproducible_figures = 0
     infeasible_figures = 0
     for fig_match in comparison.figure_matches:
-        assessment = _assess_figure(fig_match.figure_number, paper, package, execution_records)
+        assessment = _assess_figure(
+            fig_match.figure_number,
+            paper,
+            package,
+            execution_records,
+            fig_match.review_status,
+            fig_match.review_reason,
+        )
         figure_assessments.append(assessment)
-        if assessment["has_source_data"]:
+        if assessment["status"] == "reproducible":
             reproducible_figures += 1
         else:
             infeasible_figures += 1
@@ -253,6 +278,14 @@ def _compute_adjusted_verdict(
         if success_count == 0 and not has_matches:
             return "not reproducible"
 
+    if total_substantive == 0 and total_figures > 0:
+        figure_rate = reproducible_figures / total_figures
+        if figure_rate >= 0.9:
+            return "largely reproducible"
+        if figure_rate >= 0.4:
+            return "partially reproducible"
+        return "not reproducible"
+
     if adjusted_rate >= 0.85 and total_substantive >= 10:
         return "fully reproducible"
     if adjusted_rate >= 0.65 and total_substantive >= 5:
@@ -309,8 +342,8 @@ def _build_reasoning(
     total_figures = reproducible_figures + infeasible_figures
     if total_figures > 0:
         parts.append(
-            f"Of {total_figures} figures, {reproducible_figures} have source data for verification, "
-            f"{infeasible_figures} cannot be reproduced without additional compute."
+            f"Of {total_figures} figures, {reproducible_figures} passed agent visual review and "
+            f"{infeasible_figures} were partial, mismatched, infeasible, or could not be assessed."
         )
 
     parts.append(f"Adjusted verdict: {adjusted_verdict}.")

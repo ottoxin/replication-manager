@@ -7,12 +7,15 @@ from typing import Callable
 from .agents import build_agent_trace
 from .analysis import analyze_comparison
 from .compare import comparable_figure_artifacts, comparable_table_artifacts, compare_manifests
+from .figgen import generate_summary_html, replicate_all_figures
+from .figure_review import review_figure_matches
 from .log import get_logger
 from .models import (
     AgentRecord,
     AnalysisResult,
     ComparisonBundle,
     ExecutionRecord,
+    FigureArtifact,
     PackageManifest,
     PaperManifest,
     RunResult,
@@ -46,6 +49,7 @@ class WorkflowState:
     timeout_seconds: int
     stata_bin: str | None
     skip_heavy: bool
+    figure_agent_command: str | None
     inputs_dir: Path = field(init=False)
     workspace_dir: Path = field(init=False)
     artifacts_dir: Path = field(init=False)
@@ -62,7 +66,10 @@ class WorkflowState:
     screening_report: ScreeningReport | None = None
     screening_complete: bool = False
     execution_records: list[ExecutionRecord] = field(default_factory=list)
+    source_figure_replication_complete: bool = False
+    source_figure_replications: list = field(default_factory=list)
     comparison: ComparisonBundle | None = None
+    figure_review_complete: bool = False
     analysis: AnalysisResult | None = None
     report_markdown: Path | None = None
     report_html: Path | None = None
@@ -103,6 +110,7 @@ def run_agentic_workflow(
     timeout_seconds: int = 600,
     stata_bin: str | None = None,
     skip_heavy: bool = False,
+    figure_agent_command: str | None = None,
 ) -> RunResult:
     state = WorkflowState(
         paper_source=paper_source,
@@ -114,6 +122,7 @@ def run_agentic_workflow(
         timeout_seconds=timeout_seconds,
         stata_bin=stata_bin,
         skip_heavy=skip_heavy,
+        figure_agent_command=figure_agent_command,
     )
     skills = default_skills()
     max_steps = len(skills) + 2
@@ -197,6 +206,18 @@ def default_skills() -> list[WorkflowSkill]:
             run=skill_execute_package,
         ),
         WorkflowSkill(
+            name="replicate_source_figures",
+            agent="Reporter",
+            phase="Phase B",
+            should_run=lambda state: (
+                state.execution_complete
+                and state.screening_report is not None
+                and state.screening_report.has_source_data
+                and not state.source_figure_replication_complete
+            ),
+            run=skill_replicate_source_figures,
+        ),
+        WorkflowSkill(
             name="diagnose_execution",
             agent="Executor",
             phase="Phase B",
@@ -211,10 +232,21 @@ def default_skills() -> list[WorkflowSkill]:
             run=skill_match_outputs,
         ),
         WorkflowSkill(
+            name="review_figures",
+            agent="Analyst",
+            phase="Phase B",
+            should_run=lambda state: state.comparison is not None and not state.figure_review_complete,
+            run=skill_review_figures,
+        ),
+        WorkflowSkill(
             name="analyze_results",
             agent="Analyst",
             phase="Phase B",
-            should_run=lambda state: state.comparison is not None and state.analysis is None,
+            should_run=lambda state: (
+                state.comparison is not None
+                and state.figure_review_complete
+                and state.analysis is None
+            ),
             run=skill_analyze_results,
         ),
         WorkflowSkill(
@@ -441,6 +473,69 @@ def skill_execute_package(state: WorkflowState) -> SkillRecord:
     )
 
 
+def skill_replicate_source_figures(state: WorkflowState) -> SkillRecord:
+    package_root = require(state.package_root, "package root")
+    paper = require(state.paper_manifest, "paper manifest")
+    package = require(state.package_manifest, "package manifest")
+    output_dir = ensure_dir(state.output_path / "replicated_figures")
+    paper_figures = [
+        {"number": figure.number, "caption": figure.caption}
+        for figure in paper.figures
+    ]
+    captions_by_number = {figure.number: figure.caption for figure in paper.figures}
+
+    results = replicate_all_figures(package_root, output_dir, paper_figures)
+    if results:
+        generate_summary_html(results, output_dir)
+    state.source_figure_replications = results
+    state.source_figure_replication_complete = True
+
+    generated_artifacts: list[FigureArtifact] = []
+    for result in results:
+        for output_path in result.output_paths:
+            path = Path(output_path)
+            panel_label = path.stem.replace("panel_", "").replace("_", " ")
+            caption = captions_by_number.get(result.figure_number, "")
+            label_parts = [f"Figure {result.figure_number}"]
+            if caption:
+                label_parts.append(caption)
+            label_parts.append(f"replicated source data panel {panel_label}")
+            generated_artifacts.append(
+                FigureArtifact(
+                    path=str(path),
+                    label=" | ".join(label_parts),
+                    extension=path.suffix.lower(),
+                )
+            )
+
+    if generated_artifacts:
+        state.package_manifest = PackageManifest(
+            source=package.source,
+            root=package.root,
+            scripts=package.scripts,
+            table_artifacts=package.table_artifacts,
+            figure_artifacts=package.figure_artifacts + generated_artifacts,
+            environment_files=package.environment_files,
+            notes=package.notes + [
+                f"Rendered {len(generated_artifacts)} source-data figure panel(s) into `replicated_figures/`."
+            ],
+        )
+
+    success_count = sum(result.status == "success" for result in results)
+    panel_count = sum(len(result.output_paths) for result in results)
+    return SkillRecord(
+        name="replicate_source_figures",
+        agent="Reporter",
+        phase="Phase B",
+        status="success",
+        summary=(
+            f"Rendered source-data figures for {success_count}/{len(results)} figure(s), "
+            f"{panel_count} panel(s) total."
+        ),
+        artifact_paths=[str(output_dir)] + [path for result in results for path in result.output_paths],
+    )
+
+
 def skill_diagnose_execution(state: WorkflowState) -> SkillRecord:
     notes = build_diagnostic_notes(state)
     state.diagnostic_notes = notes
@@ -471,10 +566,42 @@ def skill_match_outputs(state: WorkflowState) -> SkillRecord:
         phase="Phase B",
         status="success",
         summary=(
-            f"Computed verdict `{summary.verdict}` with numeric/table/figure rates "
+            f"Computed candidate verdict `{summary.verdict}` with numeric/table/candidate-figure rates "
             f"{summary.numeric_match_rate:.1%}/{summary.table_match_rate:.1%}/{summary.figure_match_rate:.1%}."
         ),
         artifact_paths=[],
+    )
+
+
+def skill_review_figures(state: WorkflowState) -> SkillRecord:
+    comparison = require(state.comparison, "comparison bundle")
+    paper = require(state.paper_manifest, "paper manifest")
+    package = require(state.package_manifest, "package manifest")
+    reviewed = review_figure_matches(
+        comparison=comparison,
+        paper=paper,
+        package=package,
+        output_dir=state.artifacts_dir,
+        execution_records=state.execution_records,
+        agent_command=state.figure_agent_command,
+        timeout_seconds=state.timeout_seconds,
+    )
+    state.figure_review_complete = True
+
+    matched = sum(match.review_status == "matched" for match in reviewed)
+    partial = sum(match.review_status == "partially_matched" for match in reviewed)
+    mismatched = sum(match.review_status == "mismatched" for match in reviewed)
+    cannot_assess = sum(match.review_status == "cannot_assess" for match in reviewed)
+    return SkillRecord(
+        name="review_figures",
+        agent="Analyst",
+        phase="Phase B",
+        status="success",
+        summary=(
+            f"Agent-reviewed {len(reviewed)} figure(s): {matched} matched, "
+            f"{partial} partial, {mismatched} mismatched, {cannot_assess} cannot assess."
+        ),
+        artifact_paths=[match.artifact_path for match in reviewed if match.artifact_path],
     )
 
 
@@ -504,27 +631,14 @@ def skill_analyze_results(state: WorkflowState) -> SkillRecord:
 
 
 def skill_write_report(state: WorkflowState) -> SkillRecord:
-    state.report_markdown, state.report_html = render_reports(
-        output_dir=state.output_path,
-        paper=require(state.paper_manifest, "paper manifest"),
-        package=require(state.package_manifest, "package manifest"),
-        sandbox=require(state.sandbox_manifest, "sandbox manifest"),
-        execution_records=state.execution_records,
-        comparison=require(state.comparison, "comparison bundle"),
-        agent_trace=[],
-        skill_trace=state.skill_trace,
-        diagnostic_notes=state.diagnostic_notes,
-        screening=state.screening_report,
-        analysis=state.analysis,
-    )
     state.report_written = True
     return SkillRecord(
         name="write_report",
         agent="Reporter",
         phase="Phase C",
         status="success",
-        summary="Rendered Markdown and HTML reports from the workflow state.",
-        artifact_paths=[str(state.report_markdown), str(state.report_html)],
+        summary="Prepared final Markdown and HTML report rendering from the completed workflow state.",
+        artifact_paths=[],
     )
 
 
@@ -619,8 +733,12 @@ def persist_artifacts(state: WorkflowState) -> None:
         write_json(state.artifacts_dir / "package_manifest.json", state.package_manifest)
     if state.execution_complete:
         write_json(state.artifacts_dir / "execution_manifest.json", state.execution_records)
+    if state.source_figure_replication_complete:
+        write_json(state.artifacts_dir / "figure_replication.json", state.source_figure_replications)
     if state.comparison is not None:
         write_json(state.artifacts_dir / "comparison.json", state.comparison)
+    if state.figure_review_complete and state.comparison is not None:
+        write_json(state.artifacts_dir / "figure_review.json", state.comparison.figure_matches)
     write_json(state.artifacts_dir / "skill_trace.json", state.skill_trace)
     write_json(state.artifacts_dir / "diagnostic_notes.json", state.diagnostic_notes)
 
@@ -630,6 +748,11 @@ def finalize_workflow(state: WorkflowState) -> None:
         raise RuntimeError("Workflow did not reach the comparison stage.")
     if state.sandbox_manifest is None or state.package_manifest is None or state.paper_manifest is None:
         raise RuntimeError("Workflow did not materialize the required state before finalization.")
+    if state.comparison.figure_matches and not state.figure_review_complete:
+        raise RuntimeError("Workflow cannot finalize with unreviewed figure matches.")
+    pending_reviews = [match.figure_number for match in state.comparison.figure_matches if match.review_status == "pending"]
+    if pending_reviews:
+        raise RuntimeError(f"Workflow cannot finalize with pending figure reviews: {', '.join(pending_reviews)}")
 
     state.agent_trace = build_agent_trace(skill_trace=state.skill_trace, diagnostic_notes=state.diagnostic_notes)
     state.report_markdown, state.report_html = render_reports(
@@ -649,6 +772,7 @@ def finalize_workflow(state: WorkflowState) -> None:
     persist_artifacts(state)
 
     state.summary_json = state.output_path / "summary.json"
+    figure_review_counts = count_figure_reviews(state.comparison)
     write_json(
         state.summary_json,
         {
@@ -663,6 +787,7 @@ def finalize_workflow(state: WorkflowState) -> None:
             "adjusted_numeric_rate": state.analysis.adjusted_numeric_rate if state.analysis else None,
             "table_match_rate": state.comparison.summary.table_match_rate,
             "figure_match_rate": state.comparison.summary.figure_match_rate,
+            "figure_review_counts": figure_review_counts,
             "dependency_bootstrap_steps": len(state.sandbox_manifest.install_records),
             "agents": [agent.name for agent in state.agent_trace],
             "skills": [skill.name for skill in state.skill_trace],
@@ -671,6 +796,19 @@ def finalize_workflow(state: WorkflowState) -> None:
             "report_html": str(state.report_html),
         },
     )
+
+
+def count_figure_reviews(comparison: ComparisonBundle) -> dict[str, int]:
+    counts = {
+        "matched": 0,
+        "partially_matched": 0,
+        "mismatched": 0,
+        "cannot_assess": 0,
+        "pending": 0,
+    }
+    for match in comparison.figure_matches:
+        counts[match.review_status] = counts.get(match.review_status, 0) + 1
+    return counts
 
 
 def require(value, label: str):

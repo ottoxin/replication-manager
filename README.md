@@ -36,7 +36,9 @@ See [docs/architecture.md](docs/architecture.md) for the full module map, workfl
 |--------|-----------|-------|
 | PDF | `.pdf` | Primary format. Text + structured tables via pdfplumber |
 | HTML | `.html`, `.htm` | Parsed with built-in HTML stripper |
-| Plain text / Markdown | `.txt`, `.md` | Direct text extraction |
+| Plain text / Markdown | `.txt`, `.md`, `.markdown` | Markdown headings/front matter normalized before extraction |
+| LaTeX | `.tex`, `.latex` | Extracts title, captions, tables, and numeric claims from common manuscript markup |
+| Word | `.docx`, `.docm`, `.doc` | DOCX via python-docx; legacy DOC requires pandoc, textutil, or antiword |
 | URL | `https://...` | Downloaded automatically; fetches article HTML for figure extraction |
 
 ### Replication package formats
@@ -64,7 +66,19 @@ See [docs/architecture.md](docs/architecture.md) for the full module map, workfl
 | Excel | `.xlsx`, `.xls` | Multi-sheet; each sheet = one panel. Preferred over CSV |
 | CSV | `.csv` | One file per panel. Grouped by figure number from filename |
 
-Files matching `SourceData_Fig*.xlsx`, `SourceData_ExtFig*.xlsx`, or `Supplementary_FigS*.xlsx/csv` are auto-discovered.
+Files matching `SourceData_Fig*.xlsx`, `SourceData_ExtFig*.xlsx`, or `Supplementary_FigS*.xlsx/csv` are auto-discovered and rendered into `replicated_figures/` during a normal run when possible.
+
+### Agent-reviewed figure matching
+
+Figure artifacts are first paired by deterministic figure-number/caption heuristics, then every proposed pair must pass a local figure-review agent before it counts toward the figure match rate. Configure the reviewer with `--figure-agent-command` or `REPLICATION_MANAGER_FIGURE_AGENT_COMMAND`.
+
+The command receives JSON on stdin with the figure number, caption, paper image path when available, artifact path, and review rubric. It must return JSON on stdout:
+
+```json
+{"status": "matched", "score": 0.95, "reason": "Same axes, trend, and conclusion."}
+```
+
+Allowed statuses are `matched`, `partially_matched`, `mismatched`, and `cannot_assess`. Without a configured reviewer, figures are marked `cannot_assess` and do not count as matched.
 
 ### Output
 

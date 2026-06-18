@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import importlib.util
 import json
 import os
 import re
@@ -22,7 +23,7 @@ from .utils import (
 
 
 SCRIPT_SUFFIXES = {".py": "python", ".r": "r", ".do": "stata", ".sh": "shell"}
-TABLE_SUFFIXES = {".csv", ".tsv", ".txt", ".md", ".tex", ".json"}
+TABLE_SUFFIXES = {".csv", ".tsv", ".txt", ".md", ".tex", ".json", ".xlsx", ".xlsm"}
 FIGURE_SUFFIXES = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
 ENVIRONMENT_FILENAMES = {
     "requirements.txt",
@@ -183,6 +184,43 @@ def build_table_artifact(path: Path, label: str) -> TableArtifact:
             column_count=0,
             numeric_values=[parse_numeric_token(item)[0] for item in raw_numbers],
             numeric_raws=raw_numbers,
+        )
+
+    if suffix in {".xlsx", ".xlsm"}:
+        if not importlib.util.find_spec("openpyxl"):
+            return TableArtifact(path=str(path), label=label, row_count=0, column_count=0)
+
+        import openpyxl
+
+        numeric_raws: list[str] = []
+        row_count = 0
+        column_count = 0
+        try:
+            workbook = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
+        except Exception:
+            return TableArtifact(path=str(path), label=label, row_count=0, column_count=0)
+        try:
+            for sheet in workbook.worksheets:
+                for row in sheet.iter_rows(values_only=True):
+                    row_count += 1
+                    column_count = max(column_count, len(row))
+                    for cell in row:
+                        if cell is None:
+                            continue
+                        if isinstance(cell, (int, float)):
+                            numeric_raws.append(str(cell))
+                        else:
+                            numeric_raws.extend(numeric_tokens(str(cell)))
+        finally:
+            workbook.close()
+
+        return TableArtifact(
+            path=str(path),
+            label=label,
+            row_count=row_count,
+            column_count=column_count,
+            numeric_values=[parse_numeric_token(item)[0] for item in numeric_raws],
+            numeric_raws=numeric_raws,
         )
 
     text = read_text_safely(path)

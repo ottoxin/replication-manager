@@ -17,6 +17,7 @@ def run_pipeline(
     timeout_seconds: int = 600,
     stata_bin: str | None = None,
     skip_heavy: bool = False,
+    figure_agent_command: str | None = None,
 ) -> RunResult:
     """Run the full replication pipeline: intake -> profile -> inspect -> screen -> sandbox -> execute -> compare -> report."""
     return run_agentic_workflow(
@@ -29,4 +30,5 @@ def run_pipeline(
         timeout_seconds=timeout_seconds,
         stata_bin=stata_bin,
         skip_heavy=skip_heavy,
+        figure_agent_command=figure_agent_command,
     )

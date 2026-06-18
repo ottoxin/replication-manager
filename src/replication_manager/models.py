@@ -147,6 +147,12 @@ class FigureMatch:
     artifact_path: str | None = None
     score: float = 0.0
     image_similarity: float | None = None
+    review_status: str = "pending"
+    review_score: float | None = None
+    review_reason: str | None = None
+    reviewer: str | None = None
+    paper_image_path: str | None = None
+    review_raw_response: str | None = None
 
 
 @dataclass
