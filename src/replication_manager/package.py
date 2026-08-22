@@ -247,6 +247,8 @@ def iter_json_numbers(payload: object) -> list[str]:
             for item in node:
                 walk(item)
             return
+        if isinstance(node, bool):
+            return
         if isinstance(node, (int, float)):
             values.append(str(node))
             return
