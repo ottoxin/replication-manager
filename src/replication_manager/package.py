@@ -9,6 +9,7 @@ import shutil
 import zipfile
 from pathlib import Path
 
+from .rmarkdown import read_script_text
 from .models import FigureArtifact, PackageManifest, ScriptRecord, TableArtifact
 from .utils import (
     download_file,
@@ -22,7 +23,7 @@ from .utils import (
 )
 
 
-SCRIPT_SUFFIXES = {".py": "python", ".r": "r", ".do": "stata", ".sh": "shell"}
+SCRIPT_SUFFIXES = {".py": "python", ".r": "r", ".rmd": "r", ".do": "stata", ".sh": "shell"}
 TABLE_SUFFIXES = {".csv", ".tsv", ".txt", ".md", ".tex", ".json", ".xlsx", ".xlsm"}
 FIGURE_SUFFIXES = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
 ENVIRONMENT_FILENAMES = {
@@ -324,7 +325,7 @@ def discover_artifact_annotations(root: Path) -> tuple[dict[str, str], dict[str,
             continue
         section_comment: str | None = None
         detail_comment: str | None = None
-        for raw_line in read_text_safely(script).splitlines():
+        for raw_line in read_script_text(script).splitlines():
             comment = extract_comment_text(raw_line)
             if comment:
                 if is_section_comment(comment):

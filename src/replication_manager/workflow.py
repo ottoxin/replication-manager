@@ -33,7 +33,8 @@ from .screening import (
     filter_runnable_scripts,
     screen_package,
 )
-from .utils import ensure_dir, read_text_safely, write_json
+from .rmarkdown import read_script_text
+from .utils import ensure_dir, write_json
 
 logger = get_logger("workflow")
 
@@ -705,7 +706,7 @@ def find_producer_scripts(
     for script in scripts:
         if script.path == exclude_path:
             continue
-        text = read_text_safely(Path(script.path))
+        text = read_script_text(Path(script.path))
         if any(candidate in text for candidate in missing_inputs):
             producers.append(script.path)
     return producers

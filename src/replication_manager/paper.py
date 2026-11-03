@@ -105,6 +105,10 @@ def extract_text(path: Path) -> str:
     suffix = path.suffix.lower()
     if suffix == ".txt":
         return read_text_safely(path)
+    if suffix == ".rmd":
+        # Source manuscripts are inspected, never executed during paper parsing.
+        text = re.sub(r"`r\s+[^`]+`", "", read_text_safely(path))
+        return extract_markdown_text(text)
     if suffix in {".md", ".markdown"}:
         return extract_markdown_text(read_text_safely(path))
     if suffix in {".html", ".htm"}:

@@ -10,6 +10,7 @@ from pathlib import Path
 from .log import get_logger
 from .models import FigureClaim, PackageManifest, PaperManifest, ScriptRecord
 from .figgen import discover_source_data
+from .rmarkdown import read_script_text
 from .utils import read_text_safely
 
 logger = get_logger("screening")
@@ -133,7 +134,7 @@ def screen_package(
 
 
 def classify_script(script: ScriptRecord, root: Path) -> ScriptClassification:
-    text = read_text_safely(Path(script.path))
+    text = read_script_text(Path(script.path))
     lowered = text.lower()
     name = Path(script.path).name
 
@@ -187,7 +188,7 @@ def classify_figure(
 
     has_script_ref = False
     for script in package.scripts:
-        script_text = read_text_safely(Path(script.path)).lower()
+        script_text = read_script_text(Path(script.path)).lower()
         fig_patterns = [
             f"figure.{figure.number}",
             f"figure_{figure.number}",
@@ -254,7 +255,7 @@ def check_data_availability(package: PackageManifest, root: Path) -> tuple[list[
                 available.append(f"{d}/ ({len(real_files)} files, {_human_size(total_size)}) [intermediate results]")
 
     for script in package.scripts:
-        text = read_text_safely(Path(script.path))
+        text = read_script_text(Path(script.path))
         for match in re.finditer(r"""(?:read_csv|read\.csv|read\.table|pd\.read_parquet|use)\s*\(\s*['"]([^'"]+)['"]""", text):
             candidate = match.group(1).strip()
             if candidate.startswith("/") or "://" in candidate:
@@ -398,7 +399,7 @@ def _find_visualization_scripts(scripts: list[ScriptRecord]) -> list[str]:
     """Return paths of scripts that contain plotting/visualization code."""
     vis: list[str] = []
     for script in scripts:
-        text = read_text_safely(Path(script.path)).lower()
+        text = read_script_text(Path(script.path)).lower()
         if _has_any(text, VISUALIZATION_HINTS):
             vis.append(script.path)
     return vis

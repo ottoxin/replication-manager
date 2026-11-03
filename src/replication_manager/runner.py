@@ -11,7 +11,8 @@ from .dag import get_execution_order
 from .log import get_logger
 from .models import ExecutionRecord, SandboxManifest, ScriptRecord
 from .sandbox import build_subprocess_env
-from .utils import ensure_dir, read_text_safely, slugify
+from .rmarkdown import read_script_text
+from .utils import ensure_dir, slugify
 
 logger = get_logger("runner")
 
@@ -183,6 +184,16 @@ def build_command(
             return None
         return [python_bin, str(script_path)]
     if language == "r":
+        if script_path.suffix.lower() == ".rmd":
+            return [
+                "Rscript", "-e",
+                'if (!requireNamespace("rmarkdown", quietly=TRUE)) '
+                'stop("R Markdown execution requires the R package rmarkdown; '
+                'declare it in renv.lock or install.R."); '
+                'rmarkdown::render(commandArgs(trailingOnly=TRUE)[1], '
+                'envir=new.env(parent=globalenv()))',
+                str(script_path.resolve()),
+            ]
         return ["Rscript", str(script_path)]
     if language == "shell":
         return ["bash", str(script_path)]
@@ -203,7 +214,7 @@ def find_missing_inputs(script_path: Path, package_root: Path, language: str) ->
     if not patterns:
         return []
 
-    text = read_text_safely(script_path)
+    text = read_script_text(script_path)
     missing: list[str] = []
     seen: set[str] = set()
     for pattern in patterns:

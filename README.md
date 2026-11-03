@@ -37,6 +37,7 @@ See [docs/architecture.md](docs/architecture.md) for the full module map, workfl
 | PDF | `.pdf` | Primary format. Text + structured tables via pdfplumber |
 | HTML | `.html`, `.htm` | Parsed with built-in HTML stripper |
 | Plain text / Markdown | `.txt`, `.md`, `.markdown` | Markdown headings/front matter normalized before extraction |
+| R Markdown | `.Rmd` | Reads manuscript prose without executing code; use the rendered paper for computed results |
 | LaTeX | `.tex`, `.latex` | Extracts title, captions, tables, and numeric claims from common manuscript markup |
 | Word | `.docx`, `.docm`, `.doc` | DOCX via python-docx; legacy DOC requires pandoc, textutil, or antiword |
 | URL | `https://...` | Downloaded automatically; fetches article HTML for figure extraction |
@@ -55,9 +56,19 @@ See [docs/architecture.md](docs/architecture.md) for the full module map, workfl
 |----------|-----------|-------------|
 | Python | `.py` | Sandboxed venv, deps from `requirements.txt` / `pyproject.toml` / `setup.py` |
 | R | `.r` | Isolated R library, deps from `renv.lock` / `install.R` / `packages.R` |
+| R Markdown | `.Rmd` | Runs through `rmarkdown::render()` in the R environment; requires R package `rmarkdown`, Pandoc, and dependencies required by the document's output format |
 | Stata | `.do` | Requires `--stata-bin` or `REPLICATION_MANAGER_STATA_BIN` |
 | Shell | `.sh` | Runs in sandbox environment |
 | Conda | — | Detected from `environment.yml` (not auto-provisioned) |
+
+For R Markdown replication, put `.Rmd` files and their data in the package directory or ZIP. Declare `rmarkdown` and analysis packages in `renv.lock` or an installation script such as `install.R`. PDF output also requires a LaTeX installation. Rendering respects document parameters and chunk options, and runs from the document directory. `--no-execute` inspects the package without rendering it.
+
+Static R Markdown checks inspect fenced R chunks and inline R expressions, excluding prose and chunks with literal `eval=FALSE`. Dynamic chunk options, global settings, and child documents are resolved only at runtime. TeX and Word manuscripts can already be passed directly to `--paper`:
+
+```bash
+replication-manager run --paper paper.tex --package replication_package/ --output-dir runs/tex-check
+replication-manager run --paper paper.docx --package replication_package/ --output-dir runs/word-check
+```
 
 ### Source data for figure replication
 

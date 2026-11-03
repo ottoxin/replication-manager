@@ -16,7 +16,7 @@ from .utils import ensure_dir, read_text_safely, slugify
 
 logger = get_logger("sandbox")
 
-CODEOCEAN_SCRIPT_SUFFIXES = {".py", ".r", ".do", ".sh"}
+CODEOCEAN_SCRIPT_SUFFIXES = {".py", ".r", ".rmd", ".do", ".sh"}
 CODEOCEAN_MOUNT_PATTERN = re.compile(r"(?<![A-Za-z0-9_./-])/(data|results|code)(?=[^A-Za-z0-9_]|$)")
 
 

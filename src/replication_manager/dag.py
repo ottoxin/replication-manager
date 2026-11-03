@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from .models import ScriptRecord
-from .utils import read_text_safely
+from .rmarkdown import read_script_text
 
 
 R_OUTPUT_PATTERNS = [
@@ -104,7 +104,7 @@ def _get_input_patterns(language: str) -> list[str]:
 
 
 def analyze_script_io(script: ScriptRecord, package_root: Path) -> tuple[set[str], set[str]]:
-    text = read_text_safely(Path(script.path))
+    text = read_script_text(Path(script.path))
     inputs = _extract_paths(text, _get_input_patterns(script.language))
     outputs = _extract_paths(text, _get_output_patterns(script.language))
     return inputs, outputs
